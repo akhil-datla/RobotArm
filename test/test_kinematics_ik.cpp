@@ -110,3 +110,118 @@ TEST_CASE("2-link IK never returns NaN, even past the boundaries") {
     CHECK(std::isfinite(o.theta1Rad));
     CHECK(std::isfinite(o.theta2Rad));
 }
+
+// ============================ 3R IK (Phase 7) ==============================
+
+TEST_CASE("3R IK exact vectors (Appendix A)") {
+    SUBCASE("symmetric: tip (116.603, 201.962) phi=60 -> (30, 60, -30)") {
+        Ik3Result r = inverse3(100.0f, 100.0f, 60.0f, 116.603f, 201.962f, degToRad(60.0f));
+        CHECK(r.reachable);
+        CHECK(radToDeg(r.theta1Rad) == tst::approxDeg(30.0));
+        CHECK(radToDeg(r.theta2Rad) == tst::approxDeg(60.0));
+        CHECK(radToDeg(r.theta3Rad) == tst::approxDeg(-30.0));
+    }
+    SUBCASE("asymmetric: tip (152.763, 160.324) phi=90 -> (20, 40, 30)") {
+        Ik3Result r = inverse3(120.0f, 80.0f, 50.0f, 152.763f, 160.324f, degToRad(90.0f));
+        CHECK(r.reachable);
+        CHECK(radToDeg(r.theta1Rad) == tst::approxDeg(20.0));
+        CHECK(radToDeg(r.theta2Rad) == tst::approxDeg(40.0));
+        CHECK(radToDeg(r.theta3Rad) == tst::approxDeg(30.0));
+    }
+}
+
+TEST_CASE("3R IK performs the wrist decoupling exactly as documented") {
+    const float l1 = 100.0f, l2 = 100.0f, l3 = 60.0f;
+    const float x = 116.603f, y = 201.962f, phi = degToRad(60.0f);
+    // The documented recipe: subtract the hand link, 2-link IK, then theta3.
+    const float xw = x - l3 * std::cos(phi);
+    const float yw = y - l3 * std::sin(phi);
+    Ik2Result two = inverse2(l1, l2, xw, yw);
+    const float theta3 = phi - (two.theta1Rad + two.theta2Rad);
+
+    Ik3Result r = inverse3(l1, l2, l3, x, y, phi);
+    CHECK(r.theta1Rad == tst::approx(two.theta1Rad));
+    CHECK(r.theta2Rad == tst::approx(two.theta2Rad));
+    CHECK(r.theta3Rad == tst::approx(theta3));
+}
+
+TEST_CASE("3R IK round-trips through FK for many poses") {
+    struct Links { float l1, l2, l3; };
+    for (Links L : {Links{100.0f, 100.0f, 60.0f}, Links{120.0f, 80.0f, 50.0f},
+                    Links{90.0f, 110.0f, 40.0f}}) {
+        for (float t1d = -40.0f; t1d <= 90.0f; t1d += 15.0f) {
+            for (float t2d = 20.0f; t2d <= 150.0f; t2d += 15.0f) {
+                for (float t3d = -60.0f; t3d <= 60.0f; t3d += 30.0f) {
+                    ToolState fk = forward3(L.l1, L.l2, L.l3,
+                                            degToRad(t1d), degToRad(t2d), degToRad(t3d));
+                    Ik3Result r = inverse3(L.l1, L.l2, L.l3, fk.tip.x, fk.tip.y, fk.approachRad);
+                    CHECK(r.reachable);
+                    ToolState back = forward3(L.l1, L.l2, L.l3,
+                                              r.theta1Rad, r.theta2Rad, r.theta3Rad);
+                    CHECK(back.tip.x == tst::approx(fk.tip.x));
+                    CHECK(back.tip.y == tst::approx(fk.tip.y));
+                    // Approach angle is preserved exactly.
+                    CHECK(std::sin(back.approachRad) == tst::approx(std::sin(fk.approachRad)));
+                    CHECK(std::cos(back.approachRad) == tst::approx(std::cos(fk.approachRad)));
+                }
+            }
+        }
+    }
+}
+
+TEST_CASE("3R IK: the approach angle changes reachability") {
+    const float l1 = 100.0f, l2 = 100.0f, l3 = 60.0f;
+    // Tip at (240, 0): with the hand pointing forward (phi=0) the wrist point is
+    // (180,0), inside the 2-link reach; pointing back (phi=180) it is (300,0),
+    // outside it.
+    Ik3Result forward = inverse3(l1, l2, l3, 240.0f, 0.0f, degToRad(0.0f));
+    CHECK(forward.reachable);
+    Ik3Result backward = inverse3(l1, l2, l3, 240.0f, 0.0f, degToRad(180.0f));
+    CHECK_FALSE(backward.reachable);
+    CHECK(backward.clamped);
+    // Even when unreachable, the angles are finite (no NaN leaks out).
+    CHECK(std::isfinite(backward.theta1Rad));
+    CHECK(std::isfinite(backward.theta2Rad));
+    CHECK(std::isfinite(backward.theta3Rad));
+}
+
+// ======================= ArmKinematics::solve (Phase 7) ====================
+
+TEST_CASE("ArmKinematics::solve is the degrees-facing IK") {
+    SUBCASE("symmetric arm") {
+        ArmKinematics kin(100.0f, 100.0f, 60.0f);
+        JointAngles a = kin.solve(116.603f, 201.962f, 60.0f);
+        CHECK(a.reachable);
+        CHECK(a.shoulder == tst::approxDeg(30.0));
+        CHECK(a.elbow == tst::approxDeg(60.0));
+        CHECK(a.wrist == tst::approxDeg(-30.0));
+    }
+    SUBCASE("asymmetric arm") {
+        ArmKinematics kin(120.0f, 80.0f, 50.0f);
+        JointAngles a = kin.solve(152.763f, 160.324f, 90.0f);
+        CHECK(a.reachable);
+        CHECK(a.shoulder == tst::approxDeg(20.0));
+        CHECK(a.elbow == tst::approxDeg(40.0));
+        CHECK(a.wrist == tst::approxDeg(30.0));
+    }
+}
+
+TEST_CASE("ArmKinematics::solve round-trips against forward") {
+    ArmKinematics kin(120.0f, 80.0f, 50.0f);
+    JointAngles a = kin.solve(152.763f, 160.324f, 90.0f);
+    ToolPose pose = kin.forward(a.shoulder, a.elbow, a.wrist);
+    CHECK(pose.x == tst::approx(152.763));
+    CHECK(pose.y == tst::approx(160.324));
+    CHECK(pose.approachDeg == tst::approxDeg(90.0));
+}
+
+TEST_CASE("ArmKinematics::solve flags an unreachable target and clamps") {
+    ArmKinematics kin(100.0f, 100.0f, 60.0f);
+    // Way past the 260 mm max reach.
+    JointAngles a = kin.solve(400.0f, 0.0f, 0.0f);
+    CHECK_FALSE(a.reachable);
+    CHECK(a.clamped);
+    CHECK(std::isfinite(a.shoulder));
+    CHECK(std::isfinite(a.elbow));
+    CHECK(std::isfinite(a.wrist));
+}

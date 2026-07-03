@@ -71,7 +71,37 @@ struct Ik2Result {
 // boundary/out-of-range inputs never produce NaN. See Appendix A.
 Ik2Result inverse2(float l1, float l2, float x, float y, bool elbowUp = false);
 
+// Result of the 3R inverse solve (radians). reachable/clamped are decided on the
+// WRIST point (tip minus the hand link) — an approach angle that pushes the wrist
+// out of the 2-link annulus makes the same tip unreachable.
+struct Ik3Result {
+    bool reachable;
+    bool clamped;
+    float theta1Rad;
+    float theta2Rad;
+    float theta3Rad;
+};
+
+// 3R inverse kinematics: given a tip target (x, y) and an absolute approach angle
+// phi (radians), find shoulder/elbow/wrist. The trick is wrist decoupling:
+//   xw = x - L3*cos(phi);  yw = y - L3*sin(phi);   // the wrist point
+//   (theta1, theta2) = 2-link IK on (xw, yw);
+//   theta3 = phi - (theta1 + theta2).
+// See Appendix A.
+Ik3Result inverse3(float l1, float l2, float l3, float x, float y, float phiRad,
+                   bool elbowUp = false);
+
 // ---- Public, degrees-facing kinematics object -----------------------------
+
+// What solve() hands back: whether the target is reachable, whether it had to be
+// clamped, and the three joint angles in degrees.
+struct JointAngles {
+    bool reachable;
+    bool clamped;
+    float shoulder;  // degrees
+    float elbow;     // degrees
+    float wrist;     // degrees
+};
 
 // The hand pose the student reads back from forward(): where the tip is and which
 // way the gripper points, all in the public units (mm, degrees).
@@ -91,6 +121,13 @@ public:
     // Forward kinematics in degrees: given the three joint angles, where does the
     // hand end up and which way does it point? Use it to check your work.
     ToolPose forward(float shoulderDeg, float elbowDeg, float wristDeg) const;
+
+    // Inverse kinematics in degrees: what joint angles put the hand at (x, y) mm
+    // with the gripper pointing at approachDeg from +X? Returns reachability and
+    // the three angles. If unreachable, the angles are clamped to the nearest
+    // reachable pose (never NaN) and reachable == false.
+    JointAngles solve(float xMm, float yMm, float approachDeg,
+                      bool elbowUp = false) const;
 
     // Link-length access / update (mm).
     float l1() const { return m_l1; }
