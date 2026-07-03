@@ -4,6 +4,8 @@
 
 namespace roboarm {
 
+SlewRateLimiter::SlewRateLimiter() : m_maxRate(0.0f), m_value(0.0f) {}
+
 SlewRateLimiter::SlewRateLimiter(float maxUnitsPerSec)
     : m_maxRate(maxUnitsPerSec), m_value(0.0f) {}
 
