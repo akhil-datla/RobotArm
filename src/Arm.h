@@ -89,15 +89,22 @@ public:
     void begin();
 
     // --- joint registration (inject an output; channel overloads come in P10) ---
+    // Register the shoulder / elbow / wrist joint (the three IK joints, indices
+    // 0/1/2) bound to an injected output. Returns false if no clock is set yet.
     bool addShoulder(IServoOutput& output);
     bool addElbow(IServoOutput& output);
     bool addWrist(IServoOutput& output);
+    // Register an extra (non-IK) joint; returns false past kMaxJoints.
     bool addJoint(IServoOutput& output);
+    // Register the gripper with its open/closed angles. Returns false with no clock.
     bool addGripper(IServoOutput& output, float openDeg, float closeDeg);
 
     // --- motion ---
     // Solve IK for (x, y, approachDeg), command the joints, and push it out.
-    // Returns false (and clamps to the nearest reachable pose) if unreachable.
+    // Returns true only if the pose was actually reached: false if the target is
+    // kinematically unreachable OR if a joint's soft limit clamped the solution
+    // (in both cases the arm still moves to the nearest safe pose). So a false
+    // return always means "the hand is not exactly where you asked."
     bool moveTo(float xMm, float yMm, float approachDeg);
     // 2-arg form uses the default approach angle.
     bool moveTo(float xMm, float yMm);
@@ -107,8 +114,11 @@ public:
     void update();
 
     // --- gripper ---
+    // Drive the gripper to its open position.
     void openGripper();
+    // Drive the gripper to its closed position.
     void closeGripper();
+    // Set the gripper opening fraction: 0 = fully open, 1 = fully closed.
     void setGripper(float fraction);
 
     // --- queries ---
@@ -116,22 +126,32 @@ public:
     bool reachable(float xMm, float yMm, float approachDeg) const;
     // Forward kinematics of the current joint angles.
     ToolPose currentPose() const;
-    // The most recent IK result.
+    // The most recent IK result (angles + reachable/clamped flags).
     JointAngles lastSolution() const { return m_lastSolution; }
+    // Whether the most recent moveTo target was kinematically reachable.
     bool lastReachable() const { return m_lastSolution.reachable; }
 
     // --- component access (the convenience layer is transparent) ---
+    // The ArmKinematics object the arm solves with (same one, not a copy).
     ArmKinematics& kinematics() { return m_kin; }
     const ArmKinematics& kinematics() const { return m_kin; }
+    // The Joint the arm commands at this index (0=shoulder, 1=elbow, 2=wrist).
     Joint& joint(int index) { return m_joints[index]; }
     const Joint& joint(int index) const { return m_joints[index]; }
+    // The gripper the arm drives.
     Gripper& gripper() { return m_gripper; }
+    // How many joints are registered.
     int jointCount() const { return m_jointCount; }
+    // Whether a gripper has been registered.
     bool hasGripper() const { return m_hasGripper; }
 
 protected:
     // Attach an output at a fixed joint index, applying travel + smoothing.
     bool attachJointAt(int index, IServoOutput& output);
+
+    // Command joint `index` to `deg`; returns true if `deg` was inside that
+    // joint's soft limits (i.e. it was not clamped on the way to the servo).
+    bool commandJointWithinLimits(int index, float deg);
 
     ArmKinematics m_kin;
     Joint m_joints[kMaxJoints];

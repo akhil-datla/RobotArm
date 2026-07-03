@@ -1,5 +1,7 @@
 #include "Arm.h"
 
+#include <cmath>
+
 #include "core/ServoCalibration.h"  // for kServoTravelDeg default
 
 #ifdef ARDUINO
@@ -164,17 +166,29 @@ bool RobotArm::addGripper(IServoOutput& output, float openDeg, float closeDeg) {
 
 // ---- motion ---------------------------------------------------------------
 
+bool RobotArm::commandJointWithinLimits(int index, float deg) {
+    const bool within =
+        std::fabs(m_joints[index].calibration().clampAngle(deg) - deg) < 1e-3f;
+    m_joints[index].setAngle(deg);  // setAngle re-clamps, so the command is safe
+    return within;
+}
+
 bool RobotArm::moveTo(float xMm, float yMm, float approachDeg) {
     const JointAngles a = m_kin.solve(xMm, yMm, approachDeg);
     m_lastSolution = a;
-    // Command whichever of shoulder/elbow/wrist are present. setAngle clamps to
-    // each joint's soft limits, so even a clamped (unreachable) solution never
-    // produces an out-of-range command.
-    if (m_jointCount > kShoulderIndex) m_joints[kShoulderIndex].setAngle(a.shoulder);
-    if (m_jointCount > kElbowIndex) m_joints[kElbowIndex].setAngle(a.elbow);
-    if (m_jointCount > kWristIndex) m_joints[kWristIndex].setAngle(a.wrist);
+    // Command whichever of shoulder/elbow/wrist are present, and track whether any
+    // joint's soft limit had to clamp the solution. setAngle clamps internally, so
+    // even a clamped (unreachable) solution never produces an out-of-range command.
+    bool withinLimits = true;
+    if (m_jointCount > kShoulderIndex)
+        withinLimits &= commandJointWithinLimits(kShoulderIndex, a.shoulder);
+    if (m_jointCount > kElbowIndex)
+        withinLimits &= commandJointWithinLimits(kElbowIndex, a.elbow);
+    if (m_jointCount > kWristIndex)
+        withinLimits &= commandJointWithinLimits(kWristIndex, a.wrist);
     update();
-    return a.reachable;
+    // Truthful result: reached only if kinematically reachable AND no joint clamped.
+    return a.reachable && withinLimits;
 }
 
 bool RobotArm::moveTo(float xMm, float yMm) {

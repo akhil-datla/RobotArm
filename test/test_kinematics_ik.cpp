@@ -197,6 +197,36 @@ TEST_CASE("3R IK: the approach angle changes reachability") {
     CHECK(std::isfinite(backward.theta3Rad));
 }
 
+TEST_CASE("3R IK elbow-up branch reaches the same tip via the other elbow config") {
+    ToolState fk = forward3(100.0f, 100.0f, 60.0f,
+                            degToRad(30.0f), degToRad(60.0f), degToRad(-30.0f));
+    Ik3Result up = inverse3(100.0f, 100.0f, 60.0f, fk.tip.x, fk.tip.y,
+                            fk.approachRad, /*elbowUp=*/true);
+    CHECK(up.reachable);
+    CHECK(up.theta2Rad < 0.0f);  // elbow-up uses the negative elbow angle
+    ToolState back = forward3(100.0f, 100.0f, 60.0f, up.theta1Rad, up.theta2Rad,
+                              up.theta3Rad);
+    CHECK(back.tip.x == tst::approx(fk.tip.x));
+    CHECK(back.tip.y == tst::approx(fk.tip.y));
+    CHECK(std::cos(back.approachRad) == tst::approx(std::cos(fk.approachRad)));
+    CHECK(std::sin(back.approachRad) == tst::approx(std::sin(fk.approachRad)));
+}
+
+TEST_CASE("ArmKinematics::solve exposes both elbow branches") {
+    ArmKinematics kin(120.0f, 80.0f, 50.0f);
+    JointAngles down = kin.solve(152.763f, 160.324f, 90.0f, /*elbowUp=*/false);
+    JointAngles up = kin.solve(152.763f, 160.324f, 90.0f, /*elbowUp=*/true);
+    CHECK(down.elbow > 0.0f);
+    CHECK(up.elbow < 0.0f);
+    // Both configurations still put the tip at the requested point.
+    ToolPose pd = kin.forward(down.shoulder, down.elbow, down.wrist);
+    ToolPose pu = kin.forward(up.shoulder, up.elbow, up.wrist);
+    CHECK(pd.x == tst::approx(152.763));
+    CHECK(pu.x == tst::approx(152.763));
+    CHECK(pd.y == tst::approx(160.324));
+    CHECK(pu.y == tst::approx(160.324));
+}
+
 // ======================= ArmKinematics::solve (Phase 7) ====================
 
 TEST_CASE("ArmKinematics::solve is the degrees-facing IK") {

@@ -227,9 +227,11 @@ void loop() {
 }
 ```
 
-`moveTo` returns `false` if the target is unreachable and clamps to the nearest
-reachable pose. Drop down to the parts any time with `arm.kinematics()`,
-`arm.joint(i)`, and `arm.gripper()`.
+`moveTo` returns `true` only if the hand actually reached the pose. It returns
+`false` — and still moves to the nearest safe pose — when the target is
+kinematically unreachable *or* when a joint's soft limit clamps the solution.
+Drop down to the parts any time with `arm.kinematics()`, `arm.joint(i)`, and
+`arm.gripper()`.
 
 ---
 
