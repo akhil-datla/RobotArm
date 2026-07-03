@@ -42,6 +42,11 @@ float ServoCalibration::clampAngle(float angleDeg) const {
 }
 
 float ServoCalibration::angleToPulseUs(float angleDeg) const {
+    // 0. Final safety net: a NaN command (e.g. from a degenerate upstream calc)
+    //    collapses to the mid-range angle so the servo is never sent garbage.
+    if (angleDeg != angleDeg) {  // true only for NaN
+        angleDeg = 0.5f * (m_minDeg + m_maxDeg);
+    }
     // 1. Soft-limit the commanded angle so it can never leave the safe range.
     const float safeAngle = clampAngle(angleDeg);
 

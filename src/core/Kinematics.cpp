@@ -44,6 +44,18 @@ Ik2Result inverse2(float l1, float l2, float x, float y, bool elbowUp) {
     Ik2Result r;
     r.clamped = false;
 
+    // Guard a degenerate arm (a zero or negative link length, e.g. a typo in
+    // setLinkLengths). Without this the law of cosines below divides by
+    // 2*l1*l2 == 0 and a NaN would flow all the way to a servo command. §14: no
+    // NaN/Inf ever leaves kinematics.
+    if (l1 <= 0.0f || l2 <= 0.0f) {
+        r.reachable = false;
+        r.clamped = true;
+        r.theta1Rad = 0.0f;
+        r.theta2Rad = 0.0f;
+        return r;
+    }
+
     const float dMax = l1 + l2;
     const float dMin = fabsf(l1 - l2);
     float dist = sqrtf(x * x + y * y);

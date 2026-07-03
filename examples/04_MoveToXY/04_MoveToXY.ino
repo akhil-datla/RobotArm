@@ -42,6 +42,15 @@ void setup() {
   configJoint(shoulder);
   configJoint(elbow);
   configJoint(wrist);
+
+  // IMPORTANT: to point the gripper DOWN or level (grab from above / place flat),
+  // the wrist has to bend back past its own zero, so its kinematics angle is large
+  // and NEGATIVE (around -130 to -150 deg for the moves below). A 180-deg servo
+  // can cover that if we mount/calibrate it centered: an offset of 180 maps the
+  // wrist range theta3 = -180..0 onto the servo's 0..180. Without this the wrist
+  // would silently clamp to 0 and the hand would point the wrong way.
+  wrist.setOffset(180);
+  wrist.setLimits(-180, 0);
 }
 
 void loop() {
@@ -64,6 +73,7 @@ void loop() {
   //   RobotArm arm;
   //   arm.setLinkLengths(100, 100, 60);
   //   arm.addShoulder(0); arm.addElbow(1); arm.addWrist(2); arm.addGripper(3, 30, 120);
+  //   arm.joint(2).setOffset(180); arm.joint(2).setLimits(-180, 0);  // wrist, see above
   //   arm.begin();
   //   arm.moveTo(150, 40, -90);   // = solve IK, command the joints, update — for you
   //   arm.closeGripper();

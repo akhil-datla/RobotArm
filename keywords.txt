@@ -33,6 +33,7 @@ moveTo	KEYWORD2
 setJointAngles	KEYWORD2
 setAngle	KEYWORD2
 setLimits	KEYWORD2
+setAngleLimits	KEYWORD2
 setPulseRange	KEYWORD2
 setTravel	KEYWORD2
 setDirection	KEYWORD2
@@ -91,6 +92,10 @@ setIntegratorLimits	KEYWORD2
 setTolerance	KEYWORD2
 atSetpoint	KEYWORD2
 reset	KEYWORD2
+kP	KEYWORD2
+kI	KEYWORD2
+kD	KEYWORD2
+error	KEYWORD2
 lastValue	KEYWORD2
 maxRate	KEYWORD2
 setMaxRate	KEYWORD2
