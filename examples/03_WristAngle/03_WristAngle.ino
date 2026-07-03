@@ -30,6 +30,11 @@ void setup() {
   configJoint(shoulder);
   configJoint(elbow);
   configJoint(wrist);
+  // Pointing the hand down/level (phi <= 0) needs a large NEGATIVE wrist angle, so
+  // calibrate the wrist centered: offset 180 maps theta3 = -180..0 onto the servo's
+  // 0..180 range (otherwise the wrist would silently clamp to 0). See example 02.
+  wrist.setOffset(180);
+  wrist.setLimits(-180, 0);
 
   // Set a pose by hand and see where the hand ends up.
   shoulder.setAngle(30); elbow.setAngle(60); wrist.setAngle(0);

@@ -187,7 +187,11 @@ void setup() {
   board.begin();
   shoulder.setPulseRange(500, 2500); shoulder.setTravel(180); shoulder.setLimits(0, 180);
   elbow.setPulseRange(500, 2500);    elbow.setTravel(180);    elbow.setLimits(0, 180);
-  wrist.setPulseRange(500, 2500);    wrist.setTravel(180);    wrist.setLimits(0, 180);
+  wrist.setPulseRange(500, 2500);    wrist.setTravel(180);
+  // The wrist bends BACK past its own zero to point the hand down/level, so its
+  // angle goes negative. Center its 180-deg range with an offset so theta3 =
+  // -180..0 maps onto the servo's 0..180 (else the wrist silently clamps to 0).
+  wrist.setOffset(180);              wrist.setLimits(-180, 0);
 }
 
 void loop() {
@@ -217,6 +221,9 @@ void setup() {
   arm.setServoTravel(180);
   arm.addShoulder(0); arm.addElbow(1); arm.addWrist(2); arm.addGripper(3, 30, 120);
   arm.setLinkLengths(100, 100, 60);
+  // Wrist bends back for downward/level grasps -> negative angle. Center it (drop
+  // to the parts via joint(2) to configure the same Joint the arm uses).
+  arm.joint(2).setOffset(180); arm.joint(2).setLimits(-180, 0);
   arm.begin();
 }
 
@@ -305,6 +312,7 @@ wrist}`, `forward(shoulderDeg, elbowDeg, wristDeg) → ToolPose {x, y, approachD
 | Symptom | Likely fix |
 |---|---|
 | **Arm reaches the wrong direction** | Flip the joint's mounting direction: `joint.setDirection(-1)`. Adjust `setOffset(deg)` if its zero is off. |
+| **Wrist points the wrong way / won't go "down"** | Pointing the hand down or level needs a large *negative* wrist angle. Center the wrist's range: `wrist.setOffset(180); wrist.setLimits(-180, 0);` (see examples 03/04). Without it the wrist clamps to 0. |
 | **Servo jitter / the Arduino resets (brown-out)** | Use a **separate servo supply** (5–6 V, several amps) on `V+`, add the bulk capacitor, and tie all grounds together. Do not power servos from the Arduino. |
 | **Nothing moves** | Check the I²C address (`0x40`?) and `SDA`/`SCL` wiring; make sure you called `board.begin()` / `arm.begin()`; confirm the servo is on the channel you configured. |
 | **Won't reach a point** | `solve()`/`moveTo()` returned `reachable == false`. Check your link lengths (`L1, L2, L3`) and that the target is within `|L1−L2| .. L1+L2+L3`. Try a different approach angle. |

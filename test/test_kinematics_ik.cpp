@@ -123,6 +123,23 @@ TEST_CASE("2-link IK: reachable and clamped are never both true") {
     }
 }
 
+TEST_CASE("degenerate link lengths never leak NaN out of kinematics") {
+    // A zero (or negative) link length would divide by 2*l1*l2 == 0. §14 forbids
+    // any NaN/Inf leaving kinematics.
+    for (float l1 : {0.0f, -50.0f}) {
+        Ik2Result r = inverse2(l1, 100.0f, 100.0f, 50.0f);
+        CHECK_FALSE(r.reachable);
+        CHECK(std::isfinite(r.theta1Rad));
+        CHECK(std::isfinite(r.theta2Rad));
+    }
+    ArmKinematics kin(0.0f, 100.0f, 60.0f);
+    JointAngles a = kin.solve(100.0f, 50.0f, 0.0f);
+    CHECK_FALSE(a.reachable);
+    CHECK(std::isfinite(a.shoulder));
+    CHECK(std::isfinite(a.elbow));
+    CHECK(std::isfinite(a.wrist));
+}
+
 // ============================ 3R IK (Phase 7) ==============================
 
 TEST_CASE("3R IK exact vectors (Appendix A)") {

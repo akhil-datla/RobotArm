@@ -112,6 +112,31 @@ TEST_CASE("setMaxSpeed makes update() ramp joints over multiple ticks") {
     CHECK(arm.joint(2).currentDeg() == tst::approxDeg(30.0));
 }
 
+TEST_CASE("downward grasp reaches when the wrist is calibrated for negative angles") {
+    // Regression for the example/quickstart config: a downward approach (phi=-90)
+    // needs a large NEGATIVE wrist angle. With the wrist centered (offset 180,
+    // limits [-180,0]) the pose is genuinely reached instead of silently clamping.
+    FakeClock clk;
+    RobotArm arm(clk);
+    arm.setLinkLengths(100.0f, 100.0f, 60.0f);
+    FakeServoOutput sh, el, wr;
+    arm.addShoulder(sh);
+    arm.addElbow(el);
+    arm.addWrist(wr);
+    arm.joint(2).setOffset(180.0f);
+    arm.joint(2).setLimits(-180.0f, 0.0f);
+
+    bool ok = arm.moveTo(150.0f, 40.0f, -90.0f);  // grab from above
+    CHECK(ok);                                     // reached, not clamped
+    const JointAngles a = arm.lastSolution();
+    CHECK(a.wrist < -90.0f);                       // genuinely a large negative angle
+    // The commanded wrist angle equals the IK solution (no soft-limit clamp)...
+    CHECK(arm.joint(2).currentDeg() == tst::approx(a.wrist));
+    // ...and the pulse is a valid, in-range command (never garbage).
+    CHECK(wr.lastMicroseconds() >= 500.0f - 1e-3f);
+    CHECK(wr.lastMicroseconds() <= 2500.0f + 1e-3f);
+}
+
 TEST_CASE("moveTo returns false when a joint soft limit clamps the solution") {
     FakeClock clk;
     RobotArm arm(clk);

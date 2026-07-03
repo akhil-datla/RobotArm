@@ -1,5 +1,6 @@
 // Phase 4 — ServoCalibration (angle<->pulse map + mounting + soft limits) and a
 // seam test through FakeServoOutput.
+#include <cmath>
 #include "doctest.h"
 #include "TestHelpers.h"
 #include "ServoCalibration.h"
@@ -90,6 +91,13 @@ TEST_CASE("soft angle limits (minDeg/maxDeg) clamp the commanded angle") {
     // And that clamp is reflected in the pulse.
     CHECK(c.angleToPulseUs(0.0f)   == tst::approx(c.angleToPulseUs(30.0f)));
     CHECK(c.angleToPulseUs(200.0f) == tst::approx(c.angleToPulseUs(120.0f)));
+}
+
+TEST_CASE("a NaN command collapses to a safe mid-range pulse (never garbage)") {
+    ServoCalibration c;  // default limits [0, 180]
+    const float pulse = c.angleToPulseUs(std::nan(""));
+    CHECK(std::isfinite(pulse));
+    CHECK(pulse == tst::approx(1500.0));  // mid of [0,180] -> 90 deg -> 1500 us
 }
 
 TEST_CASE("a calibration drives a fake servo output (the HAL seam)") {
