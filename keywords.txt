@@ -46,6 +46,7 @@ targetDeg	KEYWORD2
 commandedPulseUs	KEYWORD2
 useSmoothing	KEYWORD2
 usePID	KEYWORD2
+useDirect	KEYWORD2
 setFeedback	KEYWORD2
 open	KEYWORD2
 close	KEYWORD2
@@ -55,6 +56,11 @@ openDeg	KEYWORD2
 closeDeg	KEYWORD2
 solve	KEYWORD2
 forward	KEYWORD2
+forward2	KEYWORD2
+forward2Points	KEYWORD2
+forward3	KEYWORD2
+inverse2	KEYWORD2
+inverse3	KEYWORD2
 setLinkLengths	KEYWORD2
 setMaxSpeed	KEYWORD2
 setServoTravel	KEYWORD2

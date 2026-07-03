@@ -50,16 +50,26 @@ TEST_CASE("moveTo reports reachability and never commands out of range") {
     arm.addElbow(el);
     arm.addWrist(wr);
 
-    SUBCASE("far out of reach returns false and clamps") {
+    SUBCASE("far out of reach returns false and clamps to the nearest pose") {
         bool ok = arm.moveTo(500.0f, 0.0f, 0.0f);  // way past 260 mm reach
         CHECK_FALSE(ok);
         // Commands are still within each joint's [0,180] limit (no NaN/overrange).
-        for (FakeServoOutput* o : {&sh, &el, &wr}) {
+        FakeServoOutput* outs[3] = {&sh, &el, &wr};
+        for (FakeServoOutput* o : outs) {
             CHECK(o->lastMicroseconds() >= 500.0f - 1e-3f);
             CHECK(o->lastMicroseconds() <= 2500.0f + 1e-3f);
         }
+        // The nearest reachable pose for (500,0,phi=0) is the arm fully extended
+        // along +X: tip at (L1+L2+L3) = 260 mm, hand level.
+        ToolPose p = arm.currentPose();
+        CHECK(p.x == tst::approx(260.0, 0.5));
+        CHECK(p.y == tst::approx(0.0, 0.5));
+        CHECK(p.approachDeg == tst::approxDeg(0.0));
     }
     SUBCASE("reachable at one approach angle, not another") {
+        // Widen the joint ranges so this isolates KINEMATIC reachability: the
+        // elbow-down solution for (240,0,0) needs a slightly negative shoulder.
+        for (int i = 0; i < 3; ++i) arm.joint(i).setLimits(-90.0f, 180.0f);
         CHECK(arm.moveTo(240.0f, 0.0f, 0.0f));         // wrist point (180,0): ok
         CHECK_FALSE(arm.moveTo(240.0f, 0.0f, 180.0f)); // wrist point (300,0): out
     }
@@ -100,6 +110,51 @@ TEST_CASE("setMaxSpeed makes update() ramp joints over multiple ticks") {
     CHECK(arm.joint(0).currentDeg() == tst::approxDeg(20.0));
     CHECK(arm.joint(1).currentDeg() == tst::approxDeg(40.0));
     CHECK(arm.joint(2).currentDeg() == tst::approxDeg(30.0));
+}
+
+TEST_CASE("moveTo returns false when a joint soft limit clamps the solution") {
+    FakeClock clk;
+    RobotArm arm(clk);
+    arm.setLinkLengths(120.0f, 80.0f, 50.0f);
+    FakeServoOutput sh, el, wr;
+    arm.addShoulder(sh);
+    arm.addElbow(el);
+    arm.addWrist(wr);
+    // Constrain the elbow so the IK solution (40 deg) is outside its soft range.
+    arm.joint(1).setLimits(0.0f, 30.0f);
+
+    bool ok = arm.moveTo(152.763f, 160.324f, 90.0f);  // needs elbow = 40 deg
+    CHECK_FALSE(ok);  // kinematically reachable, but the elbow limit blocks it
+    // The elbow command is safely clamped to its limit (never out of range)...
+    CHECK(arm.joint(1).currentDeg() == tst::approxDeg(30.0));
+    CHECK(el.lastMicroseconds() == tst::approx(pulseFor(30.0)));
+    // ...while the in-limit joints still went exactly where the IK asked.
+    CHECK(arm.joint(0).currentDeg() == tst::approxDeg(20.0));
+    CHECK(arm.joint(2).currentDeg() == tst::approxDeg(30.0));
+}
+
+TEST_CASE("setServoTravel propagates travel to every joint (and later ones)") {
+    FakeClock clk;
+    RobotArm arm(clk);
+    FakeServoOutput sh, el, wr;
+    arm.addShoulder(sh);
+    arm.addElbow(el);
+    arm.addWrist(wr);
+    arm.setServoTravel(270.0f);  // switch to a 270-degree servo mapping
+
+    // With 270-deg travel the 500..2500 us span covers 270 deg, so the pulse for a
+    // given angle changes: 135 -> 1500, 90 -> 500+90/270*2000, 45 -> 500+45/270*2000.
+    arm.setJointAngles(135.0f, 90.0f, 45.0f);  // all within the default [0,180] limits
+    CHECK(sh.lastMicroseconds() == tst::approx(1500.0));
+    CHECK(el.lastMicroseconds() == tst::approx(500.0 + 90.0 / 270.0 * 2000.0));
+    CHECK(wr.lastMicroseconds() == tst::approx(500.0 + 45.0 / 270.0 * 2000.0));
+
+    // A joint added AFTER setServoTravel also gets the 270-deg mapping.
+    FakeServoOutput extra;
+    CHECK(arm.addJoint(extra));
+    arm.joint(3).setAngle(135.0f);
+    arm.joint(3).update();
+    CHECK(extra.lastMicroseconds() == tst::approx(1500.0));
 }
 
 TEST_CASE("setMaxSpeed(0) turns smoothing back off (instant moves)") {

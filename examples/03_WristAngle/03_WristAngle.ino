@@ -43,11 +43,15 @@ void setup() {
 }
 
 void loop() {
-  // Hold the wrist POINT fixed at (140, 80) mm and sweep the approach angle phi.
-  // Inverse kinematics finds the joint angles for each phi; we print and command
-  // them so you can watch only the hand tilt.
+  // Hold the WRIST point fixed at (140, 80) mm and sweep the approach angle phi.
+  // The tip rides on an arc of radius L3 (=60 mm) around that fixed wrist point,
+  // so the wrist stays put in space while only the hand tilts. For each phi we
+  // work out the tip that keeps the wrist there, then solve IK for it.
+  const float xw = 140.0f, yw = 80.0f;
   for (int phi = 0; phi >= -90; phi -= 5) {
-    JointAngles a = kin.solve(140, 80, phi);
+    float tipX = xw + 60.0f * cosf(degToRad((float)phi));
+    float tipY = yw + 60.0f * sinf(degToRad((float)phi));
+    JointAngles a = kin.solve(tipX, tipY, phi);
     if (a.reachable) {
       shoulder.setAngle(a.shoulder); elbow.setAngle(a.elbow); wrist.setAngle(a.wrist);
       shoulder.update(); elbow.update(); wrist.update();
