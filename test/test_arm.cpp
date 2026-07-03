@@ -290,6 +290,57 @@ TEST_CASE("adding more than kMaxJoints is rejected gracefully") {
     CHECK(arm.jointCount() == kMaxJoints);
 }
 
+TEST_CASE("default-constructed arm has no clock until setClock; adds are rejected") {
+    RobotArm arm;  // default ctor: no clock (host)
+    FakeServoOutput out, grip;
+    // Without a clock, registration is rejected gracefully (no crash, no UB).
+    CHECK_FALSE(arm.addShoulder(out));
+    CHECK_FALSE(arm.addJoint(out));
+    CHECK_FALSE(arm.addGripper(grip, 30.0f, 120.0f));
+    CHECK(arm.jointCount() == 0);
+    CHECK_FALSE(arm.hasGripper());
+
+    // After setClock, registration works.
+    FakeClock clk;
+    arm.setClock(clk);
+    CHECK(arm.addShoulder(out));
+    CHECK(arm.jointCount() == 1);
+    arm.begin();  // host no-op, but exercise it
+}
+
+TEST_CASE("setServoTravel also retunes the gripper; update() refreshes it") {
+    FakeClock clk;
+    RobotArm arm(clk);
+    FakeServoOutput sh, grip;
+    arm.addShoulder(sh);
+    arm.addGripper(grip, 30.0f, 120.0f);
+    arm.setServoTravel(270.0f);  // must propagate to the gripper too
+
+    arm.openGripper();  // 30 deg under 270 travel -> 500 + 30/270*2000
+    CHECK(grip.lastMicroseconds() == tst::approx(500.0 + 30.0 / 270.0 * 2000.0));
+
+    // arm.update() refreshes the gripper output (the m_hasGripper branch).
+    const int before = grip.writeCount();
+    arm.update();
+    CHECK(grip.writeCount() == before + 1);
+}
+
+TEST_CASE("a joint added AFTER setMaxSpeed gets smoothing immediately") {
+    FakeClock clk;
+    RobotArm arm(clk);
+    arm.setMaxSpeed(30.0f);  // enable smoothing first
+    FakeServoOutput sh;
+    arm.addShoulder(sh);     // attachJointAt must wire smoothing since maxSpeed>0
+    arm.joint(0).setAngle(0.0f);
+    arm.update();            // baseline
+    CHECK(arm.joint(0).currentDeg() == tst::approxDeg(90.0));  // starts at default, no jump
+    arm.setJointAngles(0.0f, 0.0f, 0.0f);  // target shoulder 0
+    clk.advanceSeconds(0.1f);
+    arm.update();
+    // Smoothing is active: it ramps (90 -> 87), it does not jump straight to 0.
+    CHECK(arm.joint(0).currentDeg() == tst::approxDeg(87.0));
+}
+
 TEST_CASE("2-arg moveTo uses the default approach angle") {
     FakeClock clk;
     RobotArm arm(clk);

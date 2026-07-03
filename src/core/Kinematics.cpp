@@ -71,15 +71,12 @@ Ik2Result inverse2(float l1, float l2, float x, float y, bool elbowUp) {
     float ex = x;
     float ey = y;
     if (dist > dMax + kReachEpsMm) {
+        // Over-reach: project onto the outer circle. dist > dMax >= 0 here (l1,l2
+        // are positive, guarded above), so the division is always safe.
         r.clamped = true;
-        if (dist > 0.0f) {
-            const float s = dMax / dist;
-            ex = x * s;
-            ey = y * s;
-        } else {
-            ex = dMax;
-            ey = 0.0f;
-        }
+        const float s = dMax / dist;
+        ex = x * s;
+        ey = y * s;
         dist = dMax;
     } else if (dist < dMin - kReachEpsMm) {
         r.clamped = true;

@@ -147,9 +147,9 @@ bool RobotArm::addWrist(IServoOutput& output) {
 }
 
 bool RobotArm::addJoint(IServoOutput& output) {
-    if (m_jointCount >= kMaxJoints) {
-        return false;  // graceful rejection, no overflow
-    }
+    // attachJointAt is the single validation point: it rejects (returns false,
+    // leaving m_jointCount untouched) once the array is full, so this is a
+    // graceful no-overflow rejection.
     return attachJointAt(m_jointCount, output);
 }
 
