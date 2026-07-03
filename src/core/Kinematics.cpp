@@ -95,6 +95,26 @@ Ik2Result inverse2(float l1, float l2, float x, float y, bool elbowUp) {
     return r;
 }
 
+Ik3Result inverse3(float l1, float l2, float l3, float x, float y, float phiRad,
+                   bool elbowUp) {
+    // Wrist decoupling: back off along the hand link to get the wrist point, then
+    // solve the 2-link problem there. Reachability is inherited from that solve.
+    const float xw = x - l3 * cosf(phiRad);
+    const float yw = y - l3 * sinf(phiRad);
+    const Ik2Result two = inverse2(l1, l2, xw, yw, elbowUp);
+
+    Ik3Result r;
+    r.reachable = two.reachable;
+    r.clamped = two.clamped;
+    r.theta1Rad = two.theta1Rad;
+    r.theta2Rad = two.theta2Rad;
+    // Keep the requested absolute approach angle: theta3 makes the angles sum to
+    // phi. (When the wrist point was clamped, this holds phi relative to the
+    // clamped shoulder/elbow.)
+    r.theta3Rad = phiRad - (two.theta1Rad + two.theta2Rad);
+    return r;
+}
+
 // ---- ArmKinematics --------------------------------------------------------
 
 ArmKinematics::ArmKinematics(float l1Mm, float l2Mm, float l3Mm)
@@ -115,6 +135,19 @@ ToolPose ArmKinematics::forward(float shoulderDeg, float elbowDeg,
     pose.y = s.tip.y;
     pose.approachDeg = radToDeg(s.approachRad);
     return pose;
+}
+
+JointAngles ArmKinematics::solve(float xMm, float yMm, float approachDeg,
+                                 bool elbowUp) const {
+    const Ik3Result r =
+        inverse3(m_l1, m_l2, m_l3, xMm, yMm, degToRad(approachDeg), elbowUp);
+    JointAngles a;
+    a.reachable = r.reachable;
+    a.clamped = r.clamped;
+    a.shoulder = radToDeg(r.theta1Rad);
+    a.elbow = radToDeg(r.theta2Rad);
+    a.wrist = radToDeg(r.theta3Rad);
+    return a;
 }
 
 }  // namespace roboarm
