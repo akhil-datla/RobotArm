@@ -13,11 +13,11 @@
 #pragma once
 
 #include "Gripper.h"
-#include "IClock.h"
-#include "IServoOutput.h"
 #include "Joint.h"
-#include "Kinematics.h"
-#include "SlewRateLimiter.h"
+#include "core/Kinematics.h"
+#include "core/SlewRateLimiter.h"
+#include "hal/IClock.h"
+#include "hal/IServoOutput.h"
 
 #ifdef ARDUINO
 #include "arduino/ArduinoClock.h"
@@ -48,6 +48,13 @@ public:
     // Arduino/default: the clock is wired up in begin() (Phase 10).
     RobotArm();
 
+    // Non-copyable / non-movable: the arm holds internal self-references — each
+    // joint's smoothing limiter (and, on Arduino, its owned PCA9685 output) lives
+    // inside this object — so a copy would leave those pointers dangling. Declare
+    // one arm and use it.
+    RobotArm(const RobotArm&) = delete;
+    RobotArm& operator=(const RobotArm&) = delete;
+
     // Bind (or replace) the clock used for motion timing.
     void setClock(IClock& clock);
 
@@ -75,7 +82,8 @@ public:
     void setLinkLengths(float l1Mm, float l2Mm, float l3Mm);
     // Approach angle used by the 2-argument moveTo().
     void setDefaultApproachAngle(float approachDeg);
-    // Cap joint speed (deg/sec); enables slew-rate smoothing on every joint.
+    // Cap joint speed (deg/sec); enables slew-rate smoothing on every joint. A
+    // value of 0 or less turns smoothing back off (joints move instantly).
     void setMaxSpeed(float degPerSec);
     // Hook for hardware start-up. On host this is a harmless no-op.
     void begin();

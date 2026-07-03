@@ -12,7 +12,7 @@
 
 #include <stdint.h>
 
-#include "IServoOutput.h"
+#include "hal/IServoOutput.h"
 #include "ServoDriver.h"
 
 namespace roboarm {

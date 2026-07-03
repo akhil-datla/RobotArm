@@ -21,9 +21,9 @@ namespace roboarm {
 //  - error = setpoint - measurement.
 //  - The derivative is taken on the *error* signal, and is zero on the first
 //    calculate() after construction/reset (no "derivative kick").
-//  - Anti-windup: the integrator is bounded by setIntegratorLimits, and when the
-//    output saturates against setOutputLimits the integrator is back-calculated
-//    so it cannot wind up past what the output can deliver.
+//  - Anti-windup: the integrator is bounded by setIntegratorLimits, and its own
+//    contribution (kI * integral) is additionally bounded to the output range, so
+//    it can never wind up — or reverse-wind — past what the output can deliver.
 class PIDController {
 public:
     // Build a controller from the three gains. Any may be zero.

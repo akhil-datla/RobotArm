@@ -2,6 +2,7 @@
 // ArmKinematics, and Gripper components. Everything is host-tested with fakes:
 // no hardware, deterministic FakeClock.
 #include <cmath>
+#include <type_traits>
 #include "doctest.h"
 #include "TestHelpers.h"
 #include "Arm.h"
@@ -9,6 +10,11 @@
 #include "FakeClock.h"
 
 using namespace roboarm;
+
+// Self-referential internal pointers make these types unsafe to copy — enforce it.
+static_assert(!std::is_copy_constructible<RobotArm>::value, "RobotArm must be non-copyable");
+static_assert(!std::is_copy_assignable<RobotArm>::value, "RobotArm must be non-copy-assignable");
+static_assert(!std::is_copy_constructible<Joint>::value, "Joint must be non-copyable");
 
 // Expected pulse (us) for an angle under the default RDS3225 map (0->500, 180->2500).
 static double pulseFor(double deg) { return 500.0 + deg / 180.0 * 2000.0; }
@@ -91,6 +97,22 @@ TEST_CASE("setMaxSpeed makes update() ramp joints over multiple ticks") {
         clk.advanceSeconds(0.1f);
         arm.update();
     }
+    CHECK(arm.joint(0).currentDeg() == tst::approxDeg(20.0));
+    CHECK(arm.joint(1).currentDeg() == tst::approxDeg(40.0));
+    CHECK(arm.joint(2).currentDeg() == tst::approxDeg(30.0));
+}
+
+TEST_CASE("setMaxSpeed(0) turns smoothing back off (instant moves)") {
+    FakeClock clk;
+    RobotArm arm(clk);
+    FakeServoOutput sh, el, wr;
+    arm.addShoulder(sh);
+    arm.addElbow(el);
+    arm.addWrist(wr);
+    arm.setMaxSpeed(30.0f);  // smoothing on
+    arm.setMaxSpeed(0.0f);   // ...and back off
+    arm.setJointAngles(20.0f, 40.0f, 30.0f);
+    // No ramp: the joints jump straight to the targets on the first update.
     CHECK(arm.joint(0).currentDeg() == tst::approxDeg(20.0));
     CHECK(arm.joint(1).currentDeg() == tst::approxDeg(40.0));
     CHECK(arm.joint(2).currentDeg() == tst::approxDeg(30.0));

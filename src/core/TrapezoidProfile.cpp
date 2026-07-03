@@ -22,7 +22,7 @@ Shape shapeOf(const TrapezoidProfile::Constraints& c,
               const TrapezoidProfile::State& goal) {
     Shape s{};
     const float delta = goal.position - start.position;
-    s.distance = std::fabs(delta);
+    s.distance = fabsf(delta);
     s.dir = (delta > 0.0f) ? 1.0f : (delta < 0.0f ? -1.0f : 0.0f);
 
     // Degenerate / invalid constraints: treat as an instantaneous move.
@@ -50,7 +50,7 @@ Shape shapeOf(const TrapezoidProfile::Constraints& c,
     } else {
         // Too short to reach cruise speed: a triangular profile peaking at
         // sqrt(a*D), reached at exactly the halfway distance.
-        s.vPeak = std::sqrt(a * s.distance);
+        s.vPeak = sqrtf(a * s.distance);
         s.tAccel = s.vPeak / a;
         s.dAccel = s.distance * 0.5f;
         s.tCruise = 0.0f;

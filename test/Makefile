@@ -21,10 +21,11 @@ TEST_SRCS := $(wildcard test_*.cpp)
 BIN := run_tests
 
 # ---- primary TDD command -------------------------------------------------
-.PHONY: all test check-core-purity clean
+.PHONY: all test check-core-purity check-includes clean
 
-# Default goal: prove the core is Arduino-free, then run the suite.
-all: check-core-purity test
+# Default goal: prove the core is Arduino-free, prove the umbrella resolves under
+# the Arduino include layout, then run the suite.
+all: check-core-purity check-includes test
 
 test: $(BIN)
 	./$(BIN)
@@ -45,6 +46,20 @@ check-core-purity:
 	else \
 		echo "OK: src/core/ is Arduino-free."; \
 	fi
+
+# ---- Arduino include-layout guard ----------------------------------------
+# The Arduino IDE adds ONLY src/ to the include path (recursive-library layout),
+# not its subfolders. So the umbrella and every public header it pulls in must
+# reference core/ and hal/ headers relative to src/. This target syntax-checks
+# <RobotArm.h> with -Isrc alone, catching any bare cross-directory include that
+# would break `#include <RobotArm.h>` on real hardware. (ARDUINO is left
+# undefined so the check needs no Adafruit/Wire headers; the #ifdef ARDUINO block
+# is exercised by the stub-compile in CI/dev notes.)
+check-includes:
+	@echo "Checking <RobotArm.h> resolves with only src/ on the include path..."
+	@echo '#include <RobotArm.h>' | $(CXX) -std=c++17 -I../src -x c++ -fsyntax-only - \
+		&& echo "OK: umbrella header resolves under the Arduino include layout." \
+		|| (echo "FAIL: a header uses a bare cross-directory include (prefix it with core/ or hal/)."; exit 1)
 
 clean:
 	rm -f $(BIN)
