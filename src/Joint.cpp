@@ -20,6 +20,13 @@ Joint::Joint(IServoOutput& output, IClock& clock) : Joint() {
     attach(output, clock);
 }
 
+#ifdef ARDUINO
+Joint::Joint(ServoDriver& board, uint8_t channel) : Joint() {
+    m_ownedOutput.attach(board, channel);
+    attach(m_ownedOutput, sharedArduinoClock());
+}
+#endif
+
 void Joint::attach(IServoOutput& output, IClock& clock) {
     m_output = &output;
     m_clock = &clock;

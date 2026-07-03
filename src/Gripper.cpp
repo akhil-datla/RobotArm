@@ -15,6 +15,13 @@ Gripper::Gripper(IServoOutput& output, IClock& clock, float openDeg,
     configure(openDeg, closeDeg);
 }
 
+#ifdef ARDUINO
+Gripper::Gripper(ServoDriver& board, uint8_t channel, float openDeg, float closeDeg)
+    : Joint(board, channel), m_openDeg(openDeg), m_closeDeg(closeDeg) {
+    configure(openDeg, closeDeg);
+}
+#endif
+
 void Gripper::configure(float openDeg, float closeDeg) {
     m_openDeg = openDeg;
     m_closeDeg = closeDeg;
