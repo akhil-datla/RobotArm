@@ -1,6 +1,6 @@
 #include "Arm.h"
 
-#include "ServoCalibration.h"  // for kServoTravelDeg default
+#include "core/ServoCalibration.h"  // for kServoTravelDeg default
 
 #ifdef ARDUINO
 #include "arduino/ArduinoClock.h"
@@ -57,10 +57,12 @@ void RobotArm::setDefaultApproachAngle(float approachDeg) {
 
 void RobotArm::setMaxSpeed(float degPerSec) {
     m_maxSpeed = degPerSec;
-    if (degPerSec > 0.0f) {
-        for (int i = 0; i < m_jointCount; ++i) {
+    for (int i = 0; i < m_jointCount; ++i) {
+        if (degPerSec > 0.0f) {
             m_slews[i].setMaxRate(degPerSec);
             m_joints[i].useSmoothing(m_slews[i]);
+        } else {
+            m_joints[i].useDirect();  // 0 or less -> smoothing off, instant moves
         }
     }
 }

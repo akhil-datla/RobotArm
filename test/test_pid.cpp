@@ -67,6 +67,34 @@ TEST_CASE("output-limit anti-windup stops the integrator saturating further") {
     CHECK(pid.calculate(-10.0f, 0.0f, 1.0f) == tst::approx(15.0));
 }
 
+TEST_CASE("a saturating P term does not cause reverse windup") {
+    // Regression: with kP large enough that P alone saturates the output, the
+    // integrator must not be driven to the wrong sign. Previously this produced a
+    // full-scale wrong-way output at the next zero-error step.
+    PIDController pid(1.0f, 1.0f, 0.0f);
+    pid.setOutputLimits(-10.0f, 10.0f);
+    CHECK(pid.calculate(100.0f, 0.0f, 1.0f) == tst::approx(10.0));  // saturates high
+    // Error now zero. The output must not slam to the negative limit.
+    const float atZero = pid.calculate(0.0f, 0.0f, 1.0f);
+    CHECK(atZero >= 0.0f);              // never reverse to -10
+    CHECK(atZero <= 10.0f);
+    // And it must not be stuck at the wrong-sign rail on subsequent steps.
+    CHECK(pid.calculate(0.0f, 0.0f, 1.0f) >= 0.0f);
+    // A genuine negative error still drives the output negative as expected.
+    CHECK(pid.calculate(-100.0f, 0.0f, 1.0f) == tst::approx(-10.0));
+}
+
+TEST_CASE("integrator contribution is bounded by the output range") {
+    // Pure I with a large accumulated error: the I-term cannot exceed the output
+    // limit, so a later sign reversal recovers promptly (no deep windup).
+    PIDController pid(0.0f, 1.0f, 0.0f);
+    pid.setOutputLimits(-25.0f, 25.0f);
+    for (int i = 0; i < 10; ++i) pid.calculate(10.0f, 0.0f, 1.0f);  // pin high
+    CHECK(pid.calculate(10.0f, 0.0f, 1.0f) == tst::approx(25.0));
+    // One step of reversed error moves the output down by exactly that step.
+    CHECK(pid.calculate(-10.0f, 0.0f, 1.0f) == tst::approx(15.0));
+}
+
 TEST_CASE("atSetpoint honors tolerance") {
     PIDController pid(1.0f, 0.0f, 0.0f);
     pid.setTolerance(0.5f);

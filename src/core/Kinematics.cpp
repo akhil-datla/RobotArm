@@ -52,10 +52,13 @@ Ik2Result inverse2(float l1, float l2, float x, float y, bool elbowUp) {
     r.reachable = (dist <= dMax + kReachEpsMm) && (dist >= dMin - kReachEpsMm);
 
     // Effective target: if unreachable, project onto the nearest annulus edge
-    // along the same ray so the arm points the right way and never NaNs.
+    // along the same ray so the arm points the right way and never NaNs. The
+    // clamp uses the SAME epsilon band as the reachability test above, so
+    // `clamped` is never set while `reachable` is still true (a point within the
+    // tolerance of a boundary is treated as reachable and left alone).
     float ex = x;
     float ey = y;
-    if (dist > dMax) {
+    if (dist > dMax + kReachEpsMm) {
         r.clamped = true;
         if (dist > 0.0f) {
             const float s = dMax / dist;
@@ -66,7 +69,7 @@ Ik2Result inverse2(float l1, float l2, float x, float y, bool elbowUp) {
             ey = 0.0f;
         }
         dist = dMax;
-    } else if (dist < dMin) {
+    } else if (dist < dMin - kReachEpsMm) {
         r.clamped = true;
         if (dist > 1e-6f) {
             const float s = dMin / dist;

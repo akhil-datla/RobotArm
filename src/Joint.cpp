@@ -1,6 +1,6 @@
 #include "Joint.h"
 
-#include "MathUtils.h"
+#include "core/MathUtils.h"
 
 namespace roboarm {
 
@@ -67,6 +67,11 @@ void Joint::useSmoothing(SlewRateLimiter& limiter) {
 void Joint::usePID(PIDController& pid) {
     m_pid = &pid;
     m_slew = nullptr;
+}
+
+void Joint::useDirect() {
+    m_slew = nullptr;
+    m_pid = nullptr;
 }
 
 void Joint::update() {

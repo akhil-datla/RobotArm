@@ -51,26 +51,28 @@ float PIDController::calculate(float setpoint, float measurement, float dtSecond
         derivative = (err - m_lastError) / dtSeconds;
     }
 
-    // Provisional integral: accumulate only for a positive dt, then bound it to
-    // the configured integrator limits (primary anti-windup).
+    // Provisional integral: accumulate only for a positive dt.
     float integral = m_integral;
     if (dtSeconds > 0.0f) {
         integral += err * dtSeconds;
     }
+    // Anti-windup, part 1: the explicit integrator limits.
     integral = clamp(integral, m_iMin, m_iMax);
-
-    // Blend the three terms.
-    float output = m_kp * err + m_ki * integral + m_kd * derivative;
-
-    // Output-limit anti-windup: if we saturate, clamp the output and, when there
-    // is an active integrator, back-calculate it so it holds exactly the value
-    // the clamped output can deliver — it cannot wind up further.
-    const float clamped = clamp(output, m_outMin, m_outMax);
-    if (clamped != output && m_ki != 0.0f) {
-        integral = (clamped - m_kp * err - m_kd * derivative) / m_ki;
-        integral = clamp(integral, m_iMin, m_iMax);
+    // Anti-windup, part 2: bound the integrator so its OWN contribution
+    // (kI * integral) can never exceed the output range. This caps windup, and —
+    // unlike folding the P/D terms back into the integrator — it can never flip
+    // the integrator to the wrong sign, so a saturating P or D term does not
+    // produce a reverse-windup spike (a full-scale wrong-way output) at the next
+    // low-error step.
+    if (m_ki != 0.0f) {
+        const float a = m_outMin / m_ki;
+        const float b = m_outMax / m_ki;
+        integral = clamp(integral, fminf(a, b), fmaxf(a, b));
     }
-    output = clamped;
+
+    // Blend the three terms, then clamp the output to its limits.
+    float output = m_kp * err + m_ki * integral + m_kd * derivative;
+    output = clamp(output, m_outMin, m_outMax);
 
     // Commit state for the next step.
     m_integral = integral;

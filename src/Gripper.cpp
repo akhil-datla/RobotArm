@@ -1,6 +1,6 @@
 #include "Gripper.h"
 
-#include "MathUtils.h"
+#include "core/MathUtils.h"
 
 namespace roboarm {
 

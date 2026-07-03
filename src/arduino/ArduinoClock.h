@@ -8,7 +8,7 @@
 #include <Arduino.h>
 #include <stdint.h>
 
-#include "IClock.h"
+#include "hal/IClock.h"
 
 namespace roboarm {
 

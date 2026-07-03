@@ -111,6 +111,18 @@ TEST_CASE("2-link IK never returns NaN, even past the boundaries") {
     CHECK(std::isfinite(o.theta2Rad));
 }
 
+TEST_CASE("2-link IK: reachable and clamped are never both true") {
+    // Sweep finely across both reach boundaries (and the origin) and assert the
+    // flag invariant holds — a reachable point is never also reported clamped.
+    for (float d = 0.0f; d <= 260.0f; d += 0.25f) {
+        Ik2Result r = inverse2(120.0f, 80.0f, d, 0.0f);  // annulus [40, 200]
+        const bool both = r.reachable && r.clamped;
+        CHECK_FALSE(both);
+        if (r.reachable) CHECK_FALSE(r.clamped);
+        else CHECK(r.clamped);  // unreachable is always reported as clamped
+    }
+}
+
 // ============================ 3R IK (Phase 7) ==============================
 
 TEST_CASE("3R IK exact vectors (Appendix A)") {

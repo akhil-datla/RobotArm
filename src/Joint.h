@@ -11,11 +11,11 @@
 
 #include <cstdint>
 
-#include "IClock.h"
-#include "IServoOutput.h"
-#include "PIDController.h"
-#include "ServoCalibration.h"
-#include "SlewRateLimiter.h"
+#include "hal/IClock.h"
+#include "hal/IServoOutput.h"
+#include "core/PIDController.h"
+#include "core/ServoCalibration.h"
+#include "core/SlewRateLimiter.h"
 
 #ifdef ARDUINO
 #include "arduino/ArduinoClock.h"
@@ -40,6 +40,12 @@ public:
 
     // Bind (or re-bind) the output and clock.
     void attach(IServoOutput& output, IClock& clock);
+
+    // Non-copyable / non-movable: on Arduino a Joint can own its hardware output
+    // (an internal Pca9685Servo the output pointer refers to), and a copy would
+    // alias or dangle that. Declare each joint once and keep it put.
+    Joint(const Joint&) = delete;
+    Joint& operator=(const Joint&) = delete;
 
 #ifdef ARDUINO
     // Beginner convenience: bind this joint to a PCA9685 channel on `board`. It
@@ -79,6 +85,9 @@ public:
     // --- optional motion shaping ---
     // Smooth motion: ramp toward the target at the limiter's rate.
     void useSmoothing(SlewRateLimiter& limiter);
+
+    // Turn off smoothing/feedback and go back to commanding the target directly.
+    void useDirect();
 
     // Closed-loop feedback (continuous-rotation servo with a position sensor):
     // update() drives the joint using the PID and the latest setFeedback() value.
