@@ -93,6 +93,16 @@ TEST_CASE("soft angle limits (minDeg/maxDeg) clamp the commanded angle") {
     CHECK(c.angleToPulseUs(200.0f) == tst::approx(c.angleToPulseUs(120.0f)));
 }
 
+TEST_CASE("setAngleLimits orders reversed bounds so the safety clamp still works") {
+    ServoCalibration c;
+    c.setAngleLimits(120.0f, 30.0f);  // reversed on purpose
+    CHECK(c.minDeg() == tst::approxDeg(30.0));
+    CHECK(c.maxDeg() == tst::approxDeg(120.0));
+    CHECK(c.clampAngle(75.0f) == tst::approxDeg(75.0));    // inside -> unchanged
+    CHECK(c.clampAngle(10.0f) == tst::approxDeg(30.0));    // below -> low bound
+    CHECK(c.clampAngle(200.0f) == tst::approxDeg(120.0));  // above -> high bound
+}
+
 TEST_CASE("a NaN command collapses to a safe mid-range pulse (never garbage)") {
     ServoCalibration c;  // default limits [0, 180]
     const float pulse = c.angleToPulseUs(std::nan(""));

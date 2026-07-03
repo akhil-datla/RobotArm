@@ -46,6 +46,14 @@ TEST_CASE("reset sets the current value") {
     CHECK(sr.calculate(7.5f, 0.1f) == tst::approx(7.5));
 }
 
+TEST_CASE("a wrongly-signed (negative) rate still ramps toward the target") {
+    SlewRateLimiter sr(-10.0f);  // nonsensical negative rate
+    sr.reset(0.0f);
+    // Magnitude is used, so it moves TOWARD 100 by 1 per step, not away.
+    CHECK(sr.calculate(100.0f, 0.1f) == tst::approx(1.0));
+    CHECK(sr.calculate(100.0f, 0.1f) == tst::approx(2.0));
+}
+
 TEST_CASE("non-positive dt makes no move") {
     SlewRateLimiter sr(10.0f);
     sr.reset(2.0f);

@@ -33,8 +33,11 @@ void ServoCalibration::setDirection(int direction) {
 void ServoCalibration::setOffset(float offsetDeg) { m_offsetDeg = offsetDeg; }
 
 void ServoCalibration::setAngleLimits(float minDeg, float maxDeg) {
-    m_minDeg = minDeg;
-    m_maxDeg = maxDeg;
+    // Order them so a soft limit (a safety primitive) still works if the caller
+    // passes the bounds reversed — otherwise clamp(lo>hi) pins every command to a
+    // single bound.
+    m_minDeg = fminf(minDeg, maxDeg);
+    m_maxDeg = fmaxf(minDeg, maxDeg);
 }
 
 float ServoCalibration::clampAngle(float angleDeg) const {

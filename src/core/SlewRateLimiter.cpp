@@ -15,7 +15,9 @@ float SlewRateLimiter::calculate(float target, float dtSeconds) {
     if (dtSeconds <= 0.0f) {
         return m_value;  // no time has passed -> no movement
     }
-    const float maxStep = m_maxRate * dtSeconds;
+    // Use the magnitude so a rate given with the wrong sign still ramps TOWARD
+    // the target (a negative rate is meaningless) rather than driving away from it.
+    const float maxStep = fabsf(m_maxRate * dtSeconds);
     // Move toward the target, but never by more than one step's worth. clamp on
     // the requested change caps both the rise and the fall (direction reversal
     // handled automatically).
