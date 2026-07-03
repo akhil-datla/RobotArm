@@ -13,9 +13,15 @@ namespace roboarm {
 // Limits the rate of change of a signal to a maximum units-per-second.
 class SlewRateLimiter {
 public:
+    // Default: rate 0 (held). Used as array storage; call setMaxRate() before use.
+    SlewRateLimiter();
+
     // maxUnitsPerSec is the fastest the output may move (in the signal's units
     // per second, e.g. degrees/second for a joint).
     explicit SlewRateLimiter(float maxUnitsPerSec);
+
+    // Change the maximum rate (units/second) after construction.
+    void setMaxRate(float maxUnitsPerSec) { m_maxRate = maxUnitsPerSec; }
 
     // Advance one step toward `target`, moving at most maxRate*dt. Returns the
     // resulting (rate-limited) value.
