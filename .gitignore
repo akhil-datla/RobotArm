@@ -1,0 +1,4 @@
+# Host test build artifacts
+test/run_tests
+*.o
+*.out
