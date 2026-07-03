@@ -263,6 +263,21 @@ TEST_CASE("forward pose accessor reflects the commanded joint angles") {
     CHECK(p.approachDeg == tst::approxDeg(90.0));
 }
 
+TEST_CASE("joint(index) clamps out-of-range indices (never out of bounds)") {
+    FakeClock clk;
+    RobotArm arm(clk);
+    FakeServoOutput sh;
+    arm.addShoulder(sh);
+    // Out-of-range indices return a valid Joint reference (clamped), no UB/crash.
+    Joint& lo = arm.joint(-5);
+    Joint& hi = arm.joint(999);
+    CHECK(&lo == &arm.joint(0));
+    CHECK(&hi == &arm.joint(kMaxJoints - 1));
+    // The clamped joints are safe to touch.
+    hi.setAngle(45.0f);
+    CHECK(hi.targetDeg() == tst::approxDeg(45.0));
+}
+
 TEST_CASE("adding more than kMaxJoints is rejected gracefully") {
     FakeClock clk;
     RobotArm arm(clk);

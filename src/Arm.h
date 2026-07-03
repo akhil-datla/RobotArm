@@ -136,8 +136,10 @@ public:
     ArmKinematics& kinematics() { return m_kin; }
     const ArmKinematics& kinematics() const { return m_kin; }
     // The Joint the arm commands at this index (0=shoulder, 1=elbow, 2=wrist).
-    Joint& joint(int index) { return m_joints[index]; }
-    const Joint& joint(int index) const { return m_joints[index]; }
+    // The index is clamped into the valid storage range so a typo (e.g. joint(9))
+    // can never read out of bounds — it returns a real (possibly unattached) Joint.
+    Joint& joint(int index) { return m_joints[clampIndex(index)]; }
+    const Joint& joint(int index) const { return m_joints[clampIndex(index)]; }
     // The gripper the arm drives.
     Gripper& gripper() { return m_gripper; }
     // How many joints are registered.
@@ -146,6 +148,13 @@ public:
     bool hasGripper() const { return m_hasGripper; }
 
 protected:
+    // Clamp any joint index into [0, kMaxJoints-1] so accessors are never UB.
+    static int clampIndex(int index) {
+        if (index < 0) return 0;
+        if (index >= kMaxJoints) return kMaxJoints - 1;
+        return index;
+    }
+
     // Attach an output at a fixed joint index, applying travel + smoothing.
     bool attachJointAt(int index, IServoOutput& output);
 
