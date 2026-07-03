@@ -52,6 +52,25 @@ struct ToolState {
 ToolState forward3(float l1, float l2, float l3,
                    float theta1Rad, float theta2Rad, float theta3Rad);
 
+// ---- Inverse kinematics ---------------------------------------------------
+
+// Result of the 2-link inverse solve (radians).
+//   reachable — was the target within the arm's annulus [|L1-L2|, L1+L2]?
+//   clamped   — if not reachable, the angles were clamped to the nearest point
+//               on that annulus along the same ray (never a NaN, never wild).
+struct Ik2Result {
+    bool reachable;
+    bool clamped;
+    float theta1Rad;
+    float theta2Rad;
+};
+
+// 2-link inverse kinematics: joint angles that reach point (x, y). This is the
+// inner solver the 3R layer calls on the wrist point. elbowUp selects the branch
+// (down uses +acos, up uses -acos). The acos argument is clamped to [-1, 1] so
+// boundary/out-of-range inputs never produce NaN. See Appendix A.
+Ik2Result inverse2(float l1, float l2, float x, float y, bool elbowUp = false);
+
 // ---- Public, degrees-facing kinematics object -----------------------------
 
 // The hand pose the student reads back from forward(): where the tip is and which
