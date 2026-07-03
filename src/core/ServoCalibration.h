@@ -7,7 +7,7 @@
 // three per-servo mounting facts:
 //   direction (+1/-1)  — is the servo mounted forwards or backwards?
 //   offsetDeg          — added to the commanded angle to trim the mounting; a
-//                        positive offset shifts the whole map toward longer pulses.
+//                        positive offset acts as if you commanded a larger angle.
 //   minDeg/maxDeg      — soft limits so a command can never drive past the stops.
 // It is pure math (no hardware), so the whole thing is host-tested.
 //
@@ -42,10 +42,10 @@ public:
     // joint angle needs a shorter pulse. Any non-negative value means +1.
     void setDirection(int direction);
 
-    // Mounting trim (degrees), added to the commanded joint angle before mapping.
-    // A positive offset shifts the whole map toward longer pulses (as if you had
-    // commanded a larger angle); use it when the servo's zero doesn't line up with
-    // the joint's zero.
+    // Mounting trim (degrees), added to the commanded joint angle before mapping —
+    // a positive offset behaves as if you had commanded that much larger an angle
+    // (which way the pulse then moves depends on the mount direction). Use it when
+    // the servo's zero doesn't line up with the joint's zero.
     void setOffset(float offsetDeg);
 
     // Soft limits (degrees). Commanded angles are clamped into [minDeg, maxDeg]

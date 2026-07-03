@@ -86,6 +86,10 @@ TEST_CASE("Joint with a SlewRateLimiter ramps toward the target") {
 
     SlewRateLimiter slew(60.0f);  // 60 deg/sec
     j.useSmoothing(slew);
+    // Enabling smoothing re-baselines the dt timer, so the first update() after
+    // the switch is a no-move baseline (measures dt from now, not a stale gap).
+    j.update();
+    CHECK(j.currentDeg() == tst::approxDeg(0.0));
     j.setAngle(180.0f);
 
     clk.advanceSeconds(0.1f);
@@ -111,6 +115,32 @@ TEST_CASE("Joint with a SlewRateLimiter ramps toward the target") {
     for (size_t i = 1; i < h.size(); ++i) {
         CHECK(h[i] >= h[i - 1] - 1e-3f);
     }
+}
+
+TEST_CASE("enabling smoothing re-baselines dt (no jump from a stale gap)") {
+    // Regression: if a long time passes with no update() and THEN smoothing is
+    // enabled, the first smoothed step must still respect the rate limit — it must
+    // not apply the whole stale gap as dt and leap to the target.
+    FakeServoOutput out;
+    FakeClock clk;
+    Joint j(out, clk);
+    j.setLimits(0.0f, 180.0f);
+    j.setAngle(0.0f);
+    j.update();                      // park at 0 (t=0)
+    clk.advanceSeconds(10.0f);       // 10 s pass with NO update()
+
+    SlewRateLimiter slew(5.0f);      // 5 deg/sec
+    j.useSmoothing(slew);
+    j.setAngle(180.0f);
+    clk.advanceMicros(2000);         // a 2 ms tick
+    j.update();
+    // First update after the switch is a dt=0 baseline: it must NOT leap ~50 deg
+    // (which the stale 10 s gap would have caused).
+    CHECK(j.currentDeg() == tst::approxDeg(0.0));
+    // The next tick ramps at the rate limit: 5 deg/s * 2 ms = 0.01 deg.
+    clk.advanceMicros(2000);
+    j.update();
+    CHECK(j.currentDeg() == tst::approxDeg(0.01));
 }
 
 TEST_CASE("Joint with a PID + feedback drives the measured error toward zero") {
