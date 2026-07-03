@@ -19,6 +19,12 @@
 #include "Kinematics.h"
 #include "SlewRateLimiter.h"
 
+#ifdef ARDUINO
+#include "arduino/ArduinoClock.h"
+#include "arduino/Pca9685Servo.h"
+#include "arduino/ServoDriver.h"
+#endif
+
 namespace roboarm {
 
 // Maximum joints the arm can hold (fixed storage, no dynamic memory — §4.3).
@@ -44,6 +50,23 @@ public:
 
     // Bind (or replace) the clock used for motion timing.
     void setClock(IClock& clock);
+
+#ifdef ARDUINO
+    // Select the PCA9685 I2C address and servo PWM frequency (defaults 0x40 @
+    // 50 Hz). Optional — only call it if your board differs from the defaults.
+    void usePCA9685(uint8_t i2cAddress = kDefaultPca9685Address,
+                    float pwmFreqHz = kDefaultServoFreqHz);
+
+    // Channel-based joint registration: builds a PCA9685-backed output for you.
+    bool addShoulder(uint8_t channel);
+    bool addElbow(uint8_t channel);
+    bool addWrist(uint8_t channel);
+    bool addJoint(uint8_t channel);
+    bool addGripper(uint8_t channel, float openDeg, float closeDeg);
+
+    // Access the shared PCA9685 board wrapper.
+    ServoDriver& board() { return m_board; }
+#endif
 
     // --- configuration ---
     // Servo mechanical travel in degrees (default 180 for the RDS3225).
@@ -113,6 +136,13 @@ protected:
     float m_defaultApproachDeg;
     float m_maxSpeed;
     JointAngles m_lastSolution;
+
+#ifdef ARDUINO
+    // The shared board + owned per-channel outputs for the convenience path.
+    ServoDriver m_board;
+    Pca9685Servo m_outputs[kMaxJoints];
+    Pca9685Servo m_gripperOutput;
+#endif
 };
 
 }  // namespace roboarm

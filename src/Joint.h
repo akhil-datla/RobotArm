@@ -17,6 +17,12 @@
 #include "ServoCalibration.h"
 #include "SlewRateLimiter.h"
 
+#ifdef ARDUINO
+#include "arduino/ArduinoClock.h"
+#include "arduino/Pca9685Servo.h"
+#include "arduino/ServoDriver.h"
+#endif
+
 namespace roboarm {
 
 // The angle a freshly-built joint assumes until told otherwise (servo center).
@@ -34,6 +40,13 @@ public:
 
     // Bind (or re-bind) the output and clock.
     void attach(IServoOutput& output, IClock& clock);
+
+#ifdef ARDUINO
+    // Beginner convenience: bind this joint to a PCA9685 channel on `board`. It
+    // builds an internal Pca9685Servo output and uses the shared ArduinoClock, so
+    // a sketch can write `Joint shoulder(board, 0);` and nothing else.
+    Joint(ServoDriver& board, uint8_t channel);
+#endif
 
     // --- calibration set-up (these configure the joint's ServoCalibration) ---
     void setPulseRange(float minPulseUs, float maxPulseUs);
@@ -90,6 +103,12 @@ private:
 
     uint32_t m_lastMicros;
     bool m_haveLast;
+
+#ifdef ARDUINO
+    // Storage for the output built by the Joint(board, channel) convenience ctor.
+    // Left default-constructed (unbound) when an output is injected instead.
+    Pca9685Servo m_ownedOutput;
+#endif
 };
 
 }  // namespace roboarm

@@ -2,6 +2,10 @@
 
 #include "ServoCalibration.h"  // for kServoTravelDeg default
 
+#ifdef ARDUINO
+#include "arduino/ArduinoClock.h"
+#endif
+
 namespace roboarm {
 
 RobotArm::RobotArm(IClock& clock)
@@ -22,7 +26,12 @@ RobotArm::RobotArm()
       m_travelDeg(kServoTravelDeg),
       m_defaultApproachDeg(0.0f),
       m_maxSpeed(0.0f),
-      m_lastSolution{true, false, 0.0f, 0.0f, 0.0f} {}
+      m_lastSolution{true, false, 0.0f, 0.0f, 0.0f} {
+#ifdef ARDUINO
+    // On hardware the default arm times motion off the shared micros() clock.
+    m_clock = &sharedArduinoClock();
+#endif
+}
 
 void RobotArm::setClock(IClock& clock) { m_clock = &clock; }
 
@@ -57,9 +66,50 @@ void RobotArm::setMaxSpeed(float degPerSec) {
 }
 
 void RobotArm::begin() {
-    // Host build: nothing to start. The Arduino build overrides the hardware
-    // start-up (Wire/driver) in the #ifdef ARDUINO layer.
+#ifdef ARDUINO
+    // Bring up I2C and the PCA9685.
+    m_board.begin();
+#endif
+    // Host build: nothing else to start.
 }
+
+#ifdef ARDUINO
+
+void RobotArm::usePCA9685(uint8_t i2cAddress, float pwmFreqHz) {
+    m_board.configure(i2cAddress, pwmFreqHz);
+    m_clock = &sharedArduinoClock();
+}
+
+bool RobotArm::addShoulder(uint8_t channel) {
+    m_outputs[kShoulderIndex].attach(m_board, channel);
+    return attachJointAt(kShoulderIndex, m_outputs[kShoulderIndex]);
+}
+
+bool RobotArm::addElbow(uint8_t channel) {
+    m_outputs[kElbowIndex].attach(m_board, channel);
+    return attachJointAt(kElbowIndex, m_outputs[kElbowIndex]);
+}
+
+bool RobotArm::addWrist(uint8_t channel) {
+    m_outputs[kWristIndex].attach(m_board, channel);
+    return attachJointAt(kWristIndex, m_outputs[kWristIndex]);
+}
+
+bool RobotArm::addJoint(uint8_t channel) {
+    if (m_jointCount >= kMaxJoints) {
+        return false;
+    }
+    const int index = m_jointCount;
+    m_outputs[index].attach(m_board, channel);
+    return attachJointAt(index, m_outputs[index]);
+}
+
+bool RobotArm::addGripper(uint8_t channel, float openDeg, float closeDeg) {
+    m_gripperOutput.attach(m_board, channel);
+    return addGripper(m_gripperOutput, openDeg, closeDeg);
+}
+
+#endif  // ARDUINO
 
 // ---- joint registration ---------------------------------------------------
 

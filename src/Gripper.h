@@ -22,6 +22,11 @@ public:
     // Inject the hardware seam + clock and set the open/closed angles.
     Gripper(IServoOutput& output, IClock& clock, float openDeg, float closeDeg);
 
+#ifdef ARDUINO
+    // Beginner convenience: bind to a PCA9685 channel (uses the shared clock).
+    Gripper(ServoDriver& board, uint8_t channel, float openDeg, float closeDeg);
+#endif
+
     // Set the two named positions. Also widens the soft limits to span them.
     void configure(float openDeg, float closeDeg);
 
