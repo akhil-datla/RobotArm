@@ -62,16 +62,22 @@ void Joint::useSmoothing(SlewRateLimiter& limiter) {
     m_slew = &limiter;
     m_pid = nullptr;  // smoothing and PID feedback are alternative modes
     m_slew->reset(m_currentDeg);
+    // Re-baseline dt: the first update() after switching mode must measure dt
+    // from NOW, not inherit a stale gap since the last update — otherwise that
+    // first step would jump (bypassing the slew rate limit / spiking the PID).
+    m_haveLast = false;
 }
 
 void Joint::usePID(PIDController& pid) {
     m_pid = &pid;
     m_slew = nullptr;
+    m_haveLast = false;  // re-baseline dt (see useSmoothing)
 }
 
 void Joint::useDirect() {
     m_slew = nullptr;
     m_pid = nullptr;
+    m_haveLast = false;  // re-baseline dt for consistency
 }
 
 void Joint::update() {
