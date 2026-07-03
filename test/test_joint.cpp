@@ -167,6 +167,27 @@ TEST_CASE("Joint with a PID + feedback drives the measured error toward zero") {
     CHECK(std::fabs(90.0f - plant) < 0.5f);
 }
 
+TEST_CASE("setCalibration installs a full ServoCalibration and re-clamps the target") {
+    FakeServoOutput out;
+    FakeClock clk;
+    Joint j(out, clk);
+    j.setAngle(170.0f);  // target 170 under the default [0,180] limits
+
+    ServoCalibration cal;
+    cal.setPulseRange(600.0f, 2400.0f);
+    cal.setAngleLimits(0.0f, 90.0f);  // narrower range
+    cal.setDirection(-1);
+    j.setCalibration(cal);
+
+    // The stored target is re-clamped into the new, narrower limits.
+    CHECK(j.targetDeg() == tst::approxDeg(90.0));
+    // And the new calibration (endpoints + reversed direction) is in effect.
+    j.setAngle(0.0f);
+    j.update();
+    CHECK(out.lastMicroseconds() == tst::approx(2400.0));  // dir -1: 0 deg -> max pulse
+    CHECK(j.calibration().minPulseUs() == tst::approx(600.0));
+}
+
 TEST_CASE("an unattached Joint is a safe no-op") {
     Joint j;  // no output, no clock
     j.setLimits(0.0f, 180.0f);
