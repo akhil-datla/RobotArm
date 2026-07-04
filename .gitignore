@@ -1,0 +1,10 @@
+# Host test build artifacts
+test/run_tests
+*.o
+*.out
+*.gcno
+*.gcda
+*.gcov
+
+# Claude Code tooling scratch (e.g. workflow worktrees) — not part of the library
+.claude/
