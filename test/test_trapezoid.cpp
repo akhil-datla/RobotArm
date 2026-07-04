@@ -1,6 +1,7 @@
 // Phase 3 — TrapezoidProfile tests. A velocity/accel-limited approach to a
 // setpoint: speed up, (maybe) cruise, slow down, arrive at rest.
 #include <cmath>
+#include <initializer_list>
 #include "doctest.h"
 #include "TestHelpers.h"
 #include "TrapezoidProfile.h"
@@ -96,6 +97,50 @@ TEST_CASE("works in the negative direction") {
         CHECK(s.velocity >= -20.0f - 1e-3f);        // within velocity cap
     }
     CHECK(prof.calculate(T, start, goal).position == tst::approx(-30.0));
+}
+
+TEST_CASE("trapezoid position matches the analytical profile at sampled times") {
+    auto prof = makeProfile(20.0f, 10.0f);  // tAccel=2, cruise 2..5, total=7
+    TrapezoidProfile::State start{0.0f, 0.0f}, goal{100.0f, 0.0f};
+    // Accel phase: pos = 0.5*a*t^2, vel = a*t.
+    CHECK(prof.calculate(1.0f, start, goal).position == tst::approx(5.0));
+    CHECK(prof.calculate(1.0f, start, goal).velocity == tst::approx(10.0));
+    // Cruise: pos = dAccel(20) + vPeak(20)*(t-2).
+    CHECK(prof.calculate(3.0f, start, goal).position == tst::approx(40.0));
+    CHECK(prof.calculate(3.0f, start, goal).velocity == tst::approx(20.0));
+    // Decel: at t=6 (td=1), pos = 20+60+20-5 = 95, vel = 20-10 = 10.
+    CHECK(prof.calculate(6.0f, start, goal).position == tst::approx(95.0));
+    CHECK(prof.calculate(6.0f, start, goal).velocity == tst::approx(10.0));
+    CHECK(prof.totalTime(start, goal) == tst::approx(7.0));
+}
+
+TEST_CASE("triangular-profile peak distance is at the halfway point") {
+    auto prof = makeProfile(100.0f, 10.0f);  // short move -> triangle
+    TrapezoidProfile::State start{0.0f, 0.0f}, goal{5.0f, 0.0f};
+    const float T = prof.totalTime(start, goal);
+    // Peak (turnaround) is at T/2 and exactly the halfway distance (2.5 mm).
+    CHECK(prof.calculate(T * 0.5f, start, goal).position == tst::approx(2.5));
+}
+
+TEST_CASE("invalid constraints degrade to an instantaneous move (finite, no NaN)") {
+    TrapezoidProfile::State start{10.0f, 0.0f}, goal{50.0f, 0.0f};
+    for (auto prof : {makeProfile(0.0f, 10.0f), makeProfile(20.0f, 0.0f),
+                      makeProfile(-5.0f, 10.0f)}) {
+        CHECK(prof.totalTime(start, goal) == tst::approx(0.0));  // completes instantly
+        CHECK(prof.calculate(0.0f, start, goal).position == tst::approx(10.0));  // at start
+        auto s = prof.calculate(0.5f, start, goal);              // t>0 -> already done
+        CHECK(std::isfinite(s.position));
+        CHECK(s.position == tst::approx(50.0));  // at the goal, at rest
+        CHECK(s.velocity == tst::approx(0.0));
+    }
+}
+
+TEST_CASE("isFinished is true exactly at totalTime, false just before") {
+    auto prof = makeProfile(20.0f, 10.0f);
+    TrapezoidProfile::State start{0.0f, 0.0f}, goal{100.0f, 0.0f};
+    const float T = prof.totalTime(start, goal);
+    CHECK(prof.isFinished(T, start, goal));                 // >= boundary is inclusive
+    CHECK_FALSE(prof.isFinished(T - 0.01f, start, goal));
 }
 
 TEST_CASE("zero-distance move is a no-op") {

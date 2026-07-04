@@ -19,6 +19,41 @@ static_assert(!std::is_copy_constructible<Joint>::value, "Joint must be non-copy
 // Expected pulse (us) for an angle under the default RDS3225 map (0->500, 180->2500).
 static double pulseFor(double deg) { return 500.0 + deg / 180.0 * 2000.0; }
 
+TEST_CASE("a fresh injected arm has sane defaults") {
+    FakeClock clk;
+    RobotArm arm(clk);
+    CHECK(arm.jointCount() == 0);
+    CHECK_FALSE(arm.hasGripper());
+    CHECK(arm.lastReachable());                    // default solution is 'reachable'
+    CHECK_FALSE(arm.lastSolution().clamped);       // and not clamped
+}
+
+TEST_CASE("2-arg moveTo default approach angle is 0 unless changed") {
+    FakeClock clk;
+    RobotArm arm(clk);
+    arm.setLinkLengths(120.0f, 80.0f, 50.0f);
+    FakeServoOutput sh, el, wr;
+    arm.addShoulder(sh);
+    arm.addElbow(el);
+    arm.addWrist(wr);
+    for (int i = 0; i < 3; ++i) arm.joint(i).setLimits(-180.0f, 180.0f);  // no clamping
+    CHECK(arm.moveTo(150.0f, 30.0f));              // 2-arg -> default approach
+    CHECK(arm.currentPose().approachDeg == tst::approxDeg(0.0));
+}
+
+TEST_CASE("setMaxSpeed enables smoothing for any positive speed (even < 1)") {
+    FakeClock clk;
+    RobotArm arm(clk);
+    FakeServoOutput sh;
+    arm.addShoulder(sh);
+    arm.setMaxSpeed(0.5f);  // 0.5 deg/sec is still > 0 -> smoothing on
+    arm.setJointAngles(0.0f, 0.0f, 0.0f);          // target 0 from the 90 default
+    CHECK(arm.joint(0).currentDeg() == tst::approxDeg(90.0));  // baseline, no jump
+    clk.advanceSeconds(1.0f);
+    arm.update();
+    CHECK(arm.joint(0).currentDeg() == tst::approxDeg(89.5));  // ramped 0.5 deg, not jumped to 0
+}
+
 TEST_CASE("moveTo drives each fake output to the expected calibrated command") {
     // Asymmetric arm; Appendix A: tip (152.763, 160.324) phi=90 -> (20, 40, 30),
     // all within the default [0,180] joint range.
@@ -276,6 +311,22 @@ TEST_CASE("joint(index) clamps out-of-range indices (never out of bounds)") {
     // The clamped joints are safe to touch.
     hi.setAngle(45.0f);
     CHECK(hi.targetDeg() == tst::approxDeg(45.0));
+}
+
+TEST_CASE("operations at full joint capacity stay in array bounds") {
+    // Fills every slot, then exercises every joint-iterating loop. Under ASan an
+    // off-by-one (i <= m_jointCount reading m_joints[kMaxJoints]) is caught here.
+    FakeClock clk;
+    RobotArm arm(clk);
+    FakeServoOutput outs[kMaxJoints];
+    for (int i = 0; i < kMaxJoints; ++i) CHECK(arm.addJoint(outs[i]));
+    CHECK(arm.jointCount() == kMaxJoints);
+    arm.setServoTravel(200.0f);     // loops all joints (+ gripper)
+    arm.setMaxSpeed(60.0f);         // loops all joints
+    arm.setJointAngles(10.0f, 20.0f, 30.0f);
+    arm.update();                   // loops all joints
+    (void)arm.currentPose();
+    CHECK(arm.joint(kMaxJoints - 1).isAttached());
 }
 
 TEST_CASE("adding more than kMaxJoints is rejected gracefully") {

@@ -54,6 +54,10 @@ TEST_CASE("wrapAngleDeg maps angles into a single turn") {
     CHECK(wrapAngleDeg(720.0f)  == tst::approxDeg(0.0));
     CHECK(wrapAngleDeg(-360.0f) == tst::approxDeg(0.0));
     CHECK(wrapAngleDeg(540.0f)  == tst::approxDeg(-180.0)); // 540 -> -180 (half turn)
+    // Just below the +180 wrap boundary: must stay positive (pins the +180 offset).
+    CHECK(wrapAngleDeg(179.5f)  == tst::approxDeg(179.5));
+    CHECK(wrapAngleDeg(-179.5f) == tst::approxDeg(-179.5));
+    CHECK(wrapAngleDeg(200.0f)  == tst::approxDeg(-160.0));
 }
 
 TEST_CASE("Vec2 length") {

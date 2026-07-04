@@ -57,5 +57,14 @@ TEST_CASE("a wrongly-signed (negative) rate still ramps toward the target") {
 TEST_CASE("non-positive dt makes no move") {
     SlewRateLimiter sr(10.0f);
     sr.reset(2.0f);
-    CHECK(sr.calculate(100.0f, 0.0f) == tst::approx(2.0));
+    CHECK(sr.calculate(100.0f, 0.0f) == tst::approx(2.0));   // dt == 0
+    CHECK(sr.calculate(100.0f, -0.5f) == tst::approx(2.0));  // dt < 0 also no move
+}
+
+TEST_CASE("a freshly constructed limiter starts at value 0") {
+    SlewRateLimiter sr(10.0f);
+    CHECK(sr.lastValue() == tst::approx(0.0));
+    SlewRateLimiter def;  // default ctor
+    CHECK(def.lastValue() == tst::approx(0.0));
+    CHECK(def.maxRate() == tst::approx(0.0));
 }

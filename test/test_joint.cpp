@@ -13,6 +13,12 @@
 
 using namespace roboarm;
 
+TEST_CASE("a freshly built Joint parks at the neutral default (90 deg)") {
+    Joint j;
+    CHECK(j.targetDeg() == tst::approxDeg(90.0));
+    CHECK(j.currentDeg() == tst::approxDeg(90.0));
+}
+
 TEST_CASE("Joint clamps the target to its soft limits") {
     FakeServoOutput out;
     FakeClock clk;
@@ -197,6 +203,14 @@ TEST_CASE("an unattached Joint is a safe no-op") {
 }
 
 // ------------------------------- Gripper -----------------------------------
+
+TEST_CASE("a default-constructed Gripper uses the documented open/close defaults") {
+    Gripper g;
+    CHECK(g.openDeg() == tst::approxDeg(Gripper::kDefaultOpenDeg));   // 30
+    CHECK(g.closeDeg() == tst::approxDeg(Gripper::kDefaultCloseDeg)); // 120
+    CHECK(g.openDeg() == tst::approxDeg(30.0));
+    CHECK(g.closeDeg() == tst::approxDeg(120.0));
+}
 
 TEST_CASE("Gripper open/close command the configured endpoints") {
     FakeServoOutput out;

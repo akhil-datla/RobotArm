@@ -66,6 +66,27 @@ TEST_CASE("custom travel (e.g. a 270-degree unit)") {
     CHECK(c.angleToPulseUs(270.0f) == tst::approx(2500.0));
 }
 
+TEST_CASE("setTravel rejects a non-positive travel (no divide-by-zero)") {
+    ServoCalibration c;
+    c.setTravel(0.0f);   // must be rejected, else angleToPulseUs divides by 0
+    CHECK(c.travelDeg() == tst::approx(180.0));
+    CHECK(std::isfinite(c.angleToPulseUs(90.0f)));
+    CHECK(c.angleToPulseUs(90.0f) == tst::approx(1500.0));
+    c.setTravel(-45.0f);  // negative also rejected
+    CHECK(c.travelDeg() == tst::approx(180.0));
+}
+
+TEST_CASE("setDirection: any non-negative value is +1, negative is -1") {
+    ServoCalibration c;
+    CHECK(c.direction() == 1);          // default is +1
+    c.setDirection(0);
+    CHECK(c.direction() == 1);          // 0 counts as forward
+    c.setDirection(5);
+    CHECK(c.direction() == 1);          // any positive is forward
+    c.setDirection(-3);
+    CHECK(c.direction() == -1);         // negative reverses
+}
+
 TEST_CASE("direction = -1 reverses the map") {
     ServoCalibration c;
     c.setDirection(-1);
