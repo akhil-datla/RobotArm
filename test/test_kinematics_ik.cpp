@@ -244,6 +244,33 @@ TEST_CASE("ArmKinematics::solve exposes both elbow branches") {
     CHECK(pu.y == tst::approx(160.324));
 }
 
+TEST_CASE("example 03 wrist-hold sweep keeps every joint in its configured range") {
+    // Mirrors 03_WristAngle: hold the wrist point fixed and sweep phi from level
+    // to straight down. With the example's limits (shoulder/elbow [0,180], wrist
+    // [-180,0]) the IK solution must never fall outside a joint's range — else the
+    // servo would clamp and the sketch would silently hold the wrong pose.
+    ArmKinematics kin(100.0f, 100.0f, 60.0f);
+    const float xw = 120.0f, yw = 120.0f;  // the point 03_WristAngle holds fixed
+    for (int phi = 0; phi >= -90; phi -= 5) {
+        const float tipX = xw + 60.0f * std::cos(degToRad(static_cast<float>(phi)));
+        const float tipY = yw + 60.0f * std::sin(degToRad(static_cast<float>(phi)));
+        JointAngles a = kin.solve(tipX, tipY, static_cast<float>(phi));
+        CHECK(a.reachable);
+        CHECK(a.shoulder >= 0.0f);
+        CHECK(a.shoulder <= 180.0f);
+        CHECK(a.elbow >= 0.0f);
+        CHECK(a.elbow <= 180.0f);
+        CHECK(a.wrist >= -180.0f);
+        CHECK(a.wrist <= 0.0f);
+        // FK of the (in-range, unclamped) angles reproduces the tip and phi, which
+        // means the held wrist point and the approach angle are exactly as claimed.
+        ToolPose p = kin.forward(a.shoulder, a.elbow, a.wrist);
+        CHECK(p.x == tst::approx(tipX));
+        CHECK(p.y == tst::approx(tipY));
+        CHECK(p.approachDeg == tst::approxDeg(static_cast<float>(phi)));
+    }
+}
+
 // ======================= ArmKinematics::solve (Phase 7) ====================
 
 TEST_CASE("ArmKinematics::solve is the degrees-facing IK") {

@@ -48,11 +48,13 @@ void setup() {
 }
 
 void loop() {
-  // Hold the WRIST point fixed at (140, 80) mm and sweep the approach angle phi.
+  // Hold the WRIST point fixed at (120, 120) mm and sweep the approach angle phi.
   // The tip rides on an arc of radius L3 (=60 mm) around that fixed wrist point,
   // so the wrist stays put in space while only the hand tilts. For each phi we
   // work out the tip that keeps the wrist there, then solve IK for it.
-  const float xw = 140.0f, yw = 80.0f;
+  // (This point keeps the shoulder/elbow within [0,180] across the whole sweep;
+  // the wrist's offset handles its negative angle range — see setup().)
+  const float xw = 120.0f, yw = 120.0f;
   for (int phi = 0; phi >= -90; phi -= 5) {
     float tipX = xw + 60.0f * cosf(degToRad((float)phi));
     float tipY = yw + 60.0f * sinf(degToRad((float)phi));
