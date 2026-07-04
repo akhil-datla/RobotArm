@@ -49,6 +49,62 @@ TEST_CASE("derivative responds to change and is zero when error constant") {
     CHECK(pid.calculate(25.0f, 0.0f, 1.0f) == tst::approx(20.0));
 }
 
+TEST_CASE("derivative divides by dt (verified with dt != 1)") {
+    PIDController pid(0.0f, 0.0f, 1.0f);  // pure D
+    CHECK(pid.calculate(10.0f, 0.0f, 0.5f) == tst::approx(0.0));  // first call: no kick
+    CHECK(pid.calculate(10.0f, 0.0f, 0.5f) == tst::approx(0.0));  // constant error
+    // Error 10 -> 5 over dt=0.5: d(error)/dt = (5-10)/0.5 = -10 (NOT (5-10)*0.5).
+    CHECK(pid.calculate(5.0f, 0.0f, 0.5f) == tst::approx(-10.0));
+}
+
+TEST_CASE("second call with dt=0 does not divide by zero") {
+    PIDController pid(2.0f, 1.0f, 1.0f);
+    pid.calculate(10.0f, 0.0f, 1.0f);              // establishes previous error
+    const float out = pid.calculate(10.0f, 0.0f, 0.0f);  // dt=0 on a NON-first call
+    CHECK(std::isfinite(out));                     // no (err-prev)/0 NaN
+    CHECK(out == tst::approx(30.0));               // P(2*10) + I(held 10) + D(0)
+}
+
+TEST_CASE("integrator-contribution anti-windup uses outLimit/ki on BOTH bounds (ki != 1)") {
+    // The integral's own contribution is bounded to the output range, i.e. the
+    // integrator itself is bounded to [outMin/ki, outMax/ki] = [-5, +5] (NOT
+    // [-20,+20] = outLimit*ki). Both saturation directions are exercised so a
+    // mutation of EITHER bound (upper outMax/ki or lower outMin/ki) is caught.
+    {  // saturate HIGH -> exercises the upper bound (outMax/ki = +5)
+        PIDController pid(0.0f, 2.0f, 0.0f);
+        pid.setOutputLimits(-10.0f, 10.0f);
+        for (int i = 0; i < 4; ++i) pid.calculate(10.0f, 0.0f, 1.0f);
+        // integral capped at +5, one reversed step -> 5-10=-5 -> output -10.
+        CHECK(pid.calculate(-10.0f, 0.0f, 1.0f) == tst::approx(-10.0));
+    }
+    {  // saturate LOW -> exercises the lower bound (outMin/ki = -5)
+        PIDController pid(0.0f, 2.0f, 0.0f);
+        pid.setOutputLimits(-10.0f, 10.0f);
+        for (int i = 0; i < 4; ++i) pid.calculate(-10.0f, 0.0f, 1.0f);
+        // integral capped at -5, one reversed step -> -5+10=+5 -> output +10.
+        CHECK(pid.calculate(10.0f, 0.0f, 1.0f) == tst::approx(10.0));
+    }
+}
+
+TEST_CASE("atSetpoint default tolerance is zero and reset clears it") {
+    PIDController pid(1.0f, 0.0f, 0.0f);
+    CHECK_FALSE(pid.atSetpoint());              // before any calculate
+    pid.calculate(10.0f, 9.5f, 0.02f);          // |error| = 0.5, default tolerance 0
+    CHECK_FALSE(pid.atSetpoint());              // 0.5 is NOT within tolerance 0
+    pid.setTolerance(1.0f);
+    pid.calculate(10.0f, 9.5f, 0.02f);
+    CHECK(pid.atSetpoint());                    // now within tolerance 1
+    pid.reset();
+    CHECK_FALSE(pid.atSetpoint());              // reset clears the flag
+}
+
+TEST_CASE("atSetpoint is inclusive of the tolerance boundary") {
+    PIDController pid(1.0f, 0.0f, 0.0f);
+    pid.setTolerance(0.5f);
+    pid.calculate(10.0f, 9.5f, 0.02f);  // |error| == 0.5 exactly
+    CHECK(pid.atSetpoint());            // <= boundary, so true
+}
+
 TEST_CASE("setOutputLimits clamps output both directions") {
     PIDController pid(2.0f, 0.0f, 0.0f);
     pid.setOutputLimits(-5.0f, 5.0f);

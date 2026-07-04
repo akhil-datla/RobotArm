@@ -111,6 +111,61 @@ TEST_CASE("2-link IK never returns NaN, even past the boundaries") {
     CHECK(std::isfinite(o.theta2Rad));
 }
 
+TEST_CASE("2-link IK: OFF-AXIS clamping projects onto the correct ray") {
+    // On-axis clamp tests can't tell x*s from x/s (y=0). Use off-axis targets so
+    // the projected point must keep the target's direction, not just its radius.
+    SUBCASE("off-axis over-reach") {
+        Ik2Result r = inverse2(100.0f, 100.0f, 150.0f, 150.0f);  // D=212 > 200
+        CHECK_FALSE(r.reachable);
+        CHECK(r.clamped);
+        Vec2 back = forward2(100.0f, 100.0f, r.theta1Rad, r.theta2Rad);
+        CHECK(back.length() == tst::approx(200.0));            // on the outer circle
+        CHECK(back.x == tst::approx(back.y));                  // still on the 45 deg ray
+        CHECK(radToDeg(back.angleRad()) == tst::approxDeg(45.0));
+    }
+    SUBCASE("off-axis dead zone") {
+        Ik2Result r = inverse2(120.0f, 80.0f, 20.0f, 20.0f);   // D=28.3 < 40
+        CHECK_FALSE(r.reachable);
+        CHECK(r.clamped);
+        Vec2 back = forward2(120.0f, 80.0f, r.theta1Rad, r.theta2Rad);
+        CHECK(back.length() == tst::approx(40.0));             // on the inner circle
+        CHECK(radToDeg(back.angleRad()) == tst::approxDeg(45.0));
+    }
+}
+
+TEST_CASE("2-link IK: origin dead-zone falls back to the +X ray exactly") {
+    Ik2Result r = inverse2(120.0f, 80.0f, 0.0f, 0.0f);  // origin, direction undefined
+    CHECK_FALSE(r.reachable);
+    Vec2 back = forward2(120.0f, 80.0f, r.theta1Rad, r.theta2Rad);
+    CHECK(back.length() == tst::approx(40.0));  // folded to the inner radius
+    CHECK(back.y == tst::approx(0.0));          // along +X, not some other ray
+    CHECK(back.x == tst::approx(40.0));
+}
+
+TEST_CASE("IK guards a zero (not just negative) link length against NaN") {
+    // l1==0 was covered; l2==0 hits the same 2*l1*l2==0 divisor and must be guarded.
+    for (float l2 : {0.0f, -30.0f}) {
+        Ik2Result r = inverse2(100.0f, l2, 60.0f, 20.0f);
+        CHECK_FALSE(r.reachable);
+        CHECK(std::isfinite(r.theta1Rad));
+        CHECK(std::isfinite(r.theta2Rad));
+    }
+    Ik3Result r3 = inverse3(100.0f, 0.0f, 50.0f, 100.0f, 30.0f, 0.0f);
+    CHECK_FALSE(r3.reachable);
+    CHECK(std::isfinite(r3.theta1Rad));
+    CHECK(std::isfinite(r3.theta2Rad));
+    CHECK(std::isfinite(r3.theta3Rad));
+}
+
+TEST_CASE("2-link IK reachability respects the epsilon band at the boundary") {
+    // A target a hair OUTSIDE max reach (beyond the tolerance) is unreachable...
+    Ik2Result out = inverse2(100.0f, 100.0f, 200.5f, 0.0f);  // 0.5 mm past 200
+    CHECK_FALSE(out.reachable);
+    // ...while one within the tolerance of the boundary still counts as reachable.
+    Ik2Result on = inverse2(100.0f, 100.0f, 200.0005f, 0.0f);  // within 1e-3 mm
+    CHECK(on.reachable);
+}
+
 TEST_CASE("2-link IK: reachable and clamped are never both true") {
     // Sweep finely across both reach boundaries (and the origin) and assert the
     // flag invariant holds — a reachable point is never also reported clamped.
