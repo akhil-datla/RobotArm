@@ -1,10 +1,11 @@
 # RobotArm
 
 A beginner-friendly Arduino library for standing up a **2–4 joint planar robot
-arm** with a handful of friendly function calls. Reach to a point in millimeters
-with inverse kinematics, drive high-torque servos through a PCA9685 board, and
-move smoothly with built-in PID and slew-rate limiting — all the hard trig and
-pulse math lives behind a tiny, safe API you can learn one component at a time.
+arm** — or a **4-DOF spatial arm** once you add a rotating base — with a handful
+of friendly function calls. Reach to a point in millimeters with inverse
+kinematics, drive high-torque servos through a PCA9685 board, and move smoothly
+with built-in PID and slew-rate limiting — all the hard trig and pulse math lives
+behind a tiny, safe API you can learn one component at a time.
 
 It is a **glass box, not a black box**: the library does the tedious, error-prone
 work (the inverse-kinematics trig, the pulse-width math, the control-loop
@@ -21,10 +22,11 @@ command each joint, still run the control loop in your own `loop()`.
 4. [The reference servo: DSSERVO RDS3225 (180°)](#the-reference-servo-dsservo-rds3225-180)
 5. [The coordinate frame](#the-coordinate-frame)
 6. [Quickstart](#quickstart)
-7. [Calibration walkthrough](#calibration-walkthrough)
-8. [API cheat-sheet](#api-cheat-sheet)
-9. [Troubleshooting](#troubleshooting)
-10. [Examples](#examples)
+7. [Going 3D: adding a base joint](#going-3d-adding-a-base-joint)
+8. [Calibration walkthrough](#calibration-walkthrough)
+9. [API cheat-sheet](#api-cheat-sheet)
+10. [Troubleshooting](#troubleshooting)
+11. [Examples](#examples)
 
 ---
 
@@ -242,6 +244,114 @@ Drop down to the parts any time with `arm.kinematics()`, `arm.joint(i)`, and
 
 ---
 
+## Going 3D: adding a base joint
+
+Add one more servo — a **base** that yaws about the vertical axis — and the flat
+arm becomes a **4-DOF spatial arm** that can reach anywhere around itself. The
+math splits into two easy steps you already understand:
+
+1. **Aim** — the base turns to the target's *compass direction* (its azimuth).
+2. **Reach** — the same shoulder/elbow/wrist arm reaches the target's *horizontal
+   distance* + *height* in that now-rotated vertical plane — the exact same 2D
+   inverse kinematics as before.
+
+So the only new math is one `atan2` for the base; the plain 2D arm is simply the
+`z = 0` slice.
+
+### The 3D coordinate frame
+
+```
+            +Y (up)
+             ^
+             |     o tip / gripper
+             |    /
+             |   (arm reaches in a vertical plane)
+             |  /
+   (base) ===O=========================> +X (forward)   base angle = 0
+            /|
+           / |
+          /  |
+        +Z   (sideways, to the arm's left)      base angle = +90 faces +Z
+
+   A point is (x, y, z) in millimeters:
+     x = forward,  y = up,  z = sideways.
+   base angle  = atan2(z, x)             (which way the arm turns to face it)
+   reach r     = sqrt(x*x + z*z)         (horizontal distance the planar arm covers)
+   height      = y                       (the planar arm's "up")
+```
+
+The base is **centered on forward**: with a 180° servo it swings **±90°** about
++X (so it covers the half-space in front of it). Mount/calibrate it so the
+servo's mechanical center points the arm along +X — `base.setOffset(90)` and
+`base.setLimits(-90, 90)` do this (the `RobotArm3D` convenience does it for you).
+
+### (A) The component way
+
+```cpp
+#include <RobotArm.h>
+using namespace roboarm;
+
+ServoDriver board(0x40, 50);
+Joint base(board, 0);                     // NEW: the base yaw joint
+Joint shoulder(board, 1), elbow(board, 2), wrist(board, 3);
+ArmKinematics3D kin(100, 100, 60);        // same 3 link lengths; the base adds yaw
+
+void setup() {
+  board.begin();
+  base.setPulseRange(500, 2500); base.setTravel(180);
+  base.setOffset(90); base.setLimits(-90, 90);   // center azimuth 0 on "forward"
+  shoulder.setPulseRange(500, 2500); shoulder.setTravel(180); shoulder.setLimits(0, 180);
+  elbow.setPulseRange(500, 2500);    elbow.setTravel(180);    elbow.setLimits(0, 180);
+  wrist.setPulseRange(500, 2500);    wrist.setTravel(180);
+  wrist.setOffset(180);              wrist.setLimits(-180, 0);   // see Quickstart
+}
+
+void loop() {
+  JointAngles3D a = kin.solve(110, 40, 70, -90);   // reach forward+up, out to the left
+  if (a.reachable) {
+    base.setAngle(a.base);                         // STEP 2: aim, then reach
+    shoulder.setAngle(a.shoulder);
+    elbow.setAngle(a.elbow);
+    wrist.setAngle(a.wrist);
+  }
+  base.update(); shoulder.update(); elbow.update(); wrist.update();
+}
+```
+
+### (B) The short way
+
+`RobotArm3D` composes a base `Joint` + the planar `RobotArm` + `ArmKinematics3D`,
+and centers the base on forward for you.
+
+```cpp
+#include <RobotArm.h>
+using namespace roboarm;
+
+RobotArm3D arm;
+
+void setup() {
+  arm.usePCA9685(0x40, 50);
+  arm.setLinkLengths(100, 100, 60);
+  arm.addBase(0);
+  arm.addShoulder(1); arm.addElbow(2); arm.addWrist(3); arm.addGripper(4, 30, 120);
+  arm.joint(2).setOffset(180); arm.joint(2).setLimits(-180, 0);   // wrist, see Quickstart
+  arm.begin();
+}
+
+void loop() {
+  arm.moveTo(110, 40, 70, -90);   // = solve 3D IK, aim the base, command, update — for you
+  arm.closeGripper();
+  arm.update();
+}
+```
+
+Everything you learned about the 2D arm still holds — `moveTo` returns `false`
+and clamps to the nearest safe pose when a target is unreachable, `setMaxSpeed`
+smooths every joint (the base included), and you can drop to the parts with
+`arm.base()`, `arm.arm()` (the planar arm), `arm.kinematics()`, and `arm.joint(i)`.
+
+---
+
 ## Calibration walkthrough
 
 Each servo is a little different. Calibration teaches a `Joint` the true map
@@ -276,9 +386,14 @@ between angle and pulse. See **example 02** for a guided version.
 **`Gripper(board, channel, openDeg, closeDeg)`** — a Joint with two positions.
 `open()`, `close()`, `set(0..1)`.
 
-**`ArmKinematics(L1, L2, L3)`** — the geometry.
+**`ArmKinematics(L1, L2, L3)`** — the planar geometry.
 `solve(xMm, yMm, approachDeg) → JointAngles {reachable, clamped, shoulder, elbow,
 wrist}`, `forward(shoulderDeg, elbowDeg, wristDeg) → ToolPose {x, y, approachDeg}`.
+
+**`ArmKinematics3D(L1, L2, L3)`** — the spatial geometry (base yaw + the planar arm).
+`solve(xMm, yMm, zMm, approachDeg) → JointAngles3D {reachable, clamped, base,
+shoulder, elbow, wrist}`, `forward(baseDeg, shoulderDeg, elbowDeg, wristDeg) →
+ToolPose3D {x, y, z, approachDeg}`. Frame: `+X` forward, `+Y` up, `+Z` sideways.
 
 **`PIDController(kP, kI, kD)`** — a control loop you run yourself.
 `calculate(setpoint, measurement, dtSeconds)`, `setOutputLimits(min, max)`,
@@ -305,6 +420,13 @@ wrist}`, `forward(shoulderDeg, elbowDeg, wristDeg) → ToolPose {x, y, approachD
 `reachable(x, y, approachDeg)`, `currentPose()`, `kinematics()`, `joint(i)`,
 `gripper()`.
 
+**`RobotArm3D`** — the 3D convenience layer (a base `Joint` + the planar `RobotArm`
++ `ArmKinematics3D`). Same surface as `RobotArm`, plus `addBase(channel)` and a
+z-axis in the motion calls: `moveTo(x, y, z, approachDeg)`, `moveTo(x, y, z)`,
+`setJointAngles(base, sh, el, wr)`, `reachable(x, y, z, approachDeg)`,
+`currentPose() → ToolPose3D`. Drop to the parts with `base()`, `arm()`,
+`kinematics()`, `joint(i)`, `gripper()`.
+
 ---
 
 ## Troubleshooting
@@ -313,6 +435,7 @@ wrist}`, `forward(shoulderDeg, elbowDeg, wristDeg) → ToolPose {x, y, approachD
 |---|---|
 | **Arm reaches the wrong direction** | Flip the joint's mounting direction: `joint.setDirection(-1)`. Adjust `setOffset(deg)` if its zero is off. |
 | **Wrist points the wrong way / won't go "down"** | Pointing the hand down or level needs a large *negative* wrist angle. Center the wrist's range: `wrist.setOffset(180); wrist.setLimits(-180, 0);` (see examples 03/04). Without it the wrist clamps to 0. |
+| **Base turns the wrong way / not centered (3D)** | The base is centered on forward (azimuth 0 → servo center). If it faces the wrong way, flip `base.setDirection(-1)`; if "forward" is off, trim `base.setOffset(...)`. A 180° base covers ±90° — widen with a 270° servo (`setTravel(270)`) for more sweep. |
 | **Servo jitter / the Arduino resets (brown-out)** | Use a **separate servo supply** (5–6 V, several amps) on `V+`, add the bulk capacitor, and tie all grounds together. Do not power servos from the Arduino. |
 | **Nothing moves** | Check the I²C address (`0x40`?) and `SDA`/`SCL` wiring; make sure you called `board.begin()` / `arm.begin()`; confirm the servo is on the channel you configured. |
 | **Won't reach a point** | `solve()`/`moveTo()` returned `reachable == false`. Check your link lengths (`L1, L2, L3`) and that the target is within `|L1−L2| .. L1+L2+L3`. Try a different approach angle. |
@@ -330,6 +453,7 @@ wrist}`, `forward(shoulderDeg, elbowDeg, wristDeg) → ToolPose {x, y, approachD
 | `03_WristAngle` | Forward kinematics and the approach angle. |
 | `04_MoveToXY` | Inverse kinematics as a visible step; the component way, then the `RobotArm` short version. |
 | `05_SmoothMotionPID` | Slew-rate smoothing and running a `PIDController` yourself. |
+| `06_MoveToXYZ` | A rotating base joint: reach in 3D with `ArmKinematics3D`, then the `RobotArm3D` short version. |
 
 ---
 

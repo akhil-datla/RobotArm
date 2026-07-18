@@ -15,6 +15,7 @@
 #include "core/TrapezoidProfile.h"
 #include "core/ServoCalibration.h"
 #include "core/Kinematics.h"
+#include "core/Kinematics3D.h"
 
 // ---- hardware seams (interfaces, no Arduino) ------------------------------
 #include "hal/IServoOutput.h"
@@ -24,6 +25,7 @@
 #include "Joint.h"
 #include "Gripper.h"
 #include "Arm.h"
+#include "Arm3D.h"
 
 // ---- Arduino-only implementations -----------------------------------------
 // These pull in Adafruit_PWMServoDriver.h / Wire.h, so they are guarded so the
