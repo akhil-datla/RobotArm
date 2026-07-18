@@ -4,10 +4,12 @@
 # Datatypes / classes (KEYWORD1)
 #######################################
 RobotArm	KEYWORD1
+RobotArm3D	KEYWORD1
 Joint	KEYWORD1
 Gripper	KEYWORD1
 ServoDriver	KEYWORD1
 ArmKinematics	KEYWORD1
+ArmKinematics3D	KEYWORD1
 PIDController	KEYWORD1
 SlewRateLimiter	KEYWORD1
 TrapezoidProfile	KEYWORD1
@@ -16,8 +18,12 @@ Pca9685Servo	KEYWORD1
 ArduinoClock	KEYWORD1
 Vec2	KEYWORD1
 JointAngles	KEYWORD1
+JointAngles3D	KEYWORD1
 ToolPose	KEYWORD1
+ToolPose3D	KEYWORD1
 ToolState	KEYWORD1
+SpatialPose	KEYWORD1
+SpatialIk	KEYWORD1
 Arm2Points	KEYWORD1
 Ik2Result	KEYWORD1
 Ik3Result	KEYWORD1
@@ -62,12 +68,15 @@ forward2Points	KEYWORD2
 forward3	KEYWORD2
 inverse2	KEYWORD2
 inverse3	KEYWORD2
+spatialForward	KEYWORD2
+spatialInverse	KEYWORD2
 setLinkLengths	KEYWORD2
 setMaxSpeed	KEYWORD2
 setServoTravel	KEYWORD2
 setDefaultApproachAngle	KEYWORD2
 setClock	KEYWORD2
 usePCA9685	KEYWORD2
+addBase	KEYWORD2
 addShoulder	KEYWORD2
 addElbow	KEYWORD2
 addWrist	KEYWORD2
@@ -81,9 +90,12 @@ currentPose	KEYWORD2
 lastSolution	KEYWORD2
 lastReachable	KEYWORD2
 kinematics	KEYWORD2
+arm	KEYWORD2
+base	KEYWORD2
 joint	KEYWORD2
 gripper	KEYWORD2
 jointCount	KEYWORD2
+hasBase	KEYWORD2
 hasGripper	KEYWORD2
 board	KEYWORD2
 calculate	KEYWORD2
